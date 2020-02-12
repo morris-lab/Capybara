@@ -1,27 +1,32 @@
-#' Single-Cell Quadratic Programming Calculation
+#' Single Round of Quadratic Programming
 #'
-#' This function runs quadratic programming to identify the probability of the cells in single-cell RNA-seq belonging to cell types in the reference transcriptome
-#' @param bulk.transcriptome The reference transcriptome taht contains the transcriptome of each potential cell type
-#' @param single.cell.transcriptome the transcriptome profile of cells from single-cell RNA-sequencing
+#' This function runs preprocessing, including log normalization, gene intersection and scaling. Further, run one round of quadratic programming. See function sc.quad.prog.run for detailed description
+#' @param ref The reference transcriptome taht contains the transcriptome of each potential cell type
+#' @param sc.data the transcriptome profile of cells from single-cell RNA-sequencing
+#' @param scale.bulk.sc either scale or non-scale. Scaling is recommended to make the reference comparable to the single-cell. Default to scale.
 #' @param force.eq either 0 or 1. Setting to 0 assumes the 1st constraint as inequality. Setting to 1 assumes equality. Default to 0
-#' @param unix.parallel boolean value, either TRUE or FALSE. If using unix/linux based systems, this command can be set to TRUE to parallelize use parallel package. Default to FALSE
-#' @param windows.parallel boolean value, either TRUE or FALSE. If using Windows based systems, this command can be set to TRUE to parallelize use snow package. Default to FALSE
-#' @param parallel.cores the number of cores to use for parallel processes. If no parallelization selected, no parallelization will be implemented. Only 1 core will be used
-#' @keywords quadratic programming, scRNA-seq
-#' @note Code reference from Treutlein et. al., Dissecting direct reprogramming from fibroblast to neuron using single-cell RNA-seq
+#' @param unix.par boolean value, either TRUE or FALSE. If using unix/linux based systems, this command can be set to TRUE to parallelize use parallel package. Default to FALSE
+#' @param windows.par boolean value, either TRUE or FALSE. If using Windows based systems, this command can be set to TRUE to parallelize use snow package. Default to FALSE
+#' @param n.cores the number of cores to use for parallel processes. If no parallelization selected, no parallelization will be implemented. Only 1 core will be used
+#' @param save.to.path which directory would you like to save your file?
+#' @param save.to.filename prefix to the filename to save to. The final filename will be constructed inside of the function by tagging the following string _scale.csv for scaling and _non_scale.csv for not scaling.
+#' @param bulk.norm boolean value, either TRUE or FALSE. Would you like to normalize the reference?
+#' @param norm.sc boolean value, either TRUE or FALSE. Would you like to normalize the single-cell dataset?
+#' @param log.bulk boolean value, either TRUE or FALSE. Would you like to log the reference?
+#' @param log.sc boolean value, either TRUE or FALSE. Would you like to log the single-cell dataset?
+#' @keywords quadratic programming, scRNA-seq,
+#' @note This function calls the quadratic programming referenced to Treutlein et. al.
 #' @export
 #' @examples
-#' sc.quad.prog.run(ref.transcriptome, sc.transcriptome, force.eq = 1)
-single.round.QP.analysis <- function(ref, sc.data, scale.bulk.sc = "scale", n.cores = 1, save.to.path, save.to.filename, norm = T, logging = T) {
-  # Normalized the bulk and single-cell data
-  if (norm) {
-    norm.bulk <- normalize.dt(ref)
-    norm.sc.mtx <- normalize.dt(sc.data)
-  } else {
-    norm.bulk <- as.matrix(ref)
-    norm.sc.mtx <- as.matrix(sc.data)
-  }
+#' single.round.QP.analysis(ref = ref.transcriptome, sc.data = sc.transcriptome, force.eq = 1, save.to.path = "~/Desktop/", save.to.filename = "my_favorite")
+single.round.QP.analysis <- function(ref, sc.data, scale.bulk.sc = "scale", unix.par = FALSE, windows.par = FALSE, force.eq = 0,
+                                     n.cores = 1, save.to.path, save.to.filename, bulk.norm = T, norm.sc = T, log.bulk = T, log.sc = T) {
+  norm.bulk <- as.matrix(ref)
+  norm.sc.mtx <- as.matrix(sc.data)
 
+  # Normalized the bulk and single-cell data
+  if (bulk.norm) norm.bulk <- normalize.dt(ref)
+  if (norm.sc) norm.sc.mtx <- normalize.dt(sc.data)
 
   # Calculate the scaling ratio
   scale.ratio.sc <- calc.scale.ratio(ref, sc.data)
@@ -43,21 +48,25 @@ single.round.QP.analysis <- function(ref, sc.data, scale.bulk.sc = "scale", n.co
   if (scale.bulk.sc == "scale") {
     qp.rslt <- sc.quad.prog.run(as.matrix(log.scale.ls.sc[[1]]),
                                 single.cell.transcriptome = log.scale.ls.sc[[2]],
-                                unix.parallel = TRUE, parallel.cores = n.cores, force.eq = 1)
+                                unix.parallel = unix.par, windows.parallel = windows.par,
+                                parallel.cores = n.cores, force.eq = force.eq)
     write.csv(qp.rslt, paste0(save.to.path, save.to.filename, "_scale.csv"), quote = F, row.names = F)
   } else {
     if (scale.bulk.sc == "non-scale") {
       qp.rslt <- sc.quad.prog.run(as.matrix(log.norm.ls.sc[[1]]),
                                   single.cell.transcriptome = log.norm.ls.sc[[2]],
-                                  unix.parallel = TRUE, parallel.cores = n.cores, force.eq = 1)
+                                  unix.parallel = unix.par, windows.parallel = windows.par,
+                                  parallel.cores = n.cores, force.eq = force.eq)
       write.csv(qp.rslt, paste0(save.to.path, save.to.filename, "_non_scale.csv"), quote = F, row.names = F)
     } else {
       qp.rslt.scl <- sc.quad.prog.run(as.matrix(log.scale.ls.sc[[1]]),
                                       single.cell.transcriptome = log.scale.ls.sc[[2]],
-                                      unix.parallel = TRUE, parallel.cores = n.cores, force.eq = 1)
+                                      unix.parallel = unix.par, windows.parallel = windows.par,
+                                      parallel.cores = n.cores, force.eq = force.eq)
       qp.rslt.non.scl <- sc.quad.prog.run(as.matrix(log.norm.ls.sc[[1]]),
                                           single.cell.transcriptome = log.norm.ls.sc[[2]],
-                                          unix.parallel = TRUE, parallel.cores = n.cores, force.eq = 1)
+                                          unix.parallel = unix.par, windows.parallel = windows.par,
+                                          parallel.cores = n.cores, force.eq = force.eq)
       write.csv(qp.rslt.scl, paste0(save.to.path, save.to.filename, "_scale.csv"), quote = F, row.names = F)
       write.csv(qp.rslt.non.scl, paste0(save.to.path, save.to.filename, "_non_scale.csv"), quote = F, row.names = F)
     }
