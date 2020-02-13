@@ -1,7 +1,7 @@
 #' Generate classification results from the binarized result matrix
 #'
 #' This function genrate classification table from the binarized result matrix
-#' @param bin.count.rslt The binarized result matrix
+#' @param bin.count.rslt The binarized classification result matrix
 #' @keywords calssification, result
 #' @note 
 #' @export
