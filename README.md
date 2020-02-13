@@ -29,5 +29,14 @@ Load the package
 library("Capybara")
 ```
 
-
-
+## Step 1: Tissue-Level Classification
+### Application of quadratic programming on reference and sample single-cell dataset using a bulk reference
+### Identification of tissue correlate in the reference to the sample single-cell dataset
+## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
+### Systematic construction of a high-resolution reference
+### Application of quadratic programming on the self-established reference with the sample
+## Step 3: Discrete Cell Type Classification and Multiple Identity Scoring
+### Empirical p-value calculation
+### Binarization with Mann-Whitney
+### Classification
+## Analysis of Cells with Multiple Identities
