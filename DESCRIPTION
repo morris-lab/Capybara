@@ -1,13 +1,26 @@
 Package: Capybara
-Title: What the Package Does (One Line, Title Case)
+Title: A tool to measure cell identity and fate transitions
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Sam",
+           family = "Morris",
            role = c("aut", "cre"),
-           email = "first.last@example.com",
+           email = "s.morris@wustl.edu",
            comment = c(ORCID = "YOUR-ORCID-ID"))
 Description: What the package does (one paragraph).
+Depends: R (>= 3.5.0),
+    gridExtra,
+    tools,
+    proxy,
+    corrplot,
+    igraph,
+    data.table,
+    plyr,
+    reshape,
+    Matrix,
+    tidyverse,
+    foreach,
+    networkD3
 License: What license it uses
 Encoding: UTF-8
 LazyData: true
