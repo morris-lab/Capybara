@@ -9,18 +9,24 @@ Authors@R:
            comment = c(ORCID = "YOUR-ORCID-ID"))
 Description: What the package does (one paragraph).
 Depends: R (>= 3.5.0),
-    gridExtra,
+    pheatmap,
+    viridis,
     tools,
-    proxy,
-    corrplot,
-    igraph,
+    psych,
+    MVA,
     data.table,
-    plyr,
+    pbmcapply,
     reshape,
     Matrix,
     tidyverse,
-    foreach,
-    networkD3
+    snow,
+    parallel,
+    plyr,
+    dplyr,
+    ggplot2,
+    quadprog,
+    limma,
+    glmnet
 License: What license it uses
 Encoding: UTF-8
 LazyData: true

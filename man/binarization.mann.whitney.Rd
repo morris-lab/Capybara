@@ -12,7 +12,7 @@ binarization.mann.whitney(mtx, ref.perc.ls, ref.meta, perc.ls,
 
 \item{ref.perc.ls}{Emprical p-values for reference cells}
 
-\item{ref.meta}{T}
+\item{ref.meta}{The celltype meta information for reference cells}
 
 \item{perc.ls}{Emprical p-values for query cells}
 

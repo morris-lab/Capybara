@@ -7,7 +7,7 @@
 binary.to.classification(bin.count.rslt)
 }
 \arguments{
-\item{bin.count.rslt}{The binarized result matrix}
+\item{bin.count.rslt}{The binarized classification result matrix}
 }
 \description{
 This function genrate classification table from the binarized result matrix
