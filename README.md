@@ -28,12 +28,18 @@ Load the package
 ```r
 library("Capybara")
 ```
+## Preparation Step: Single-Cell Atlas Gathering, Cleaning and Preprocessing
+In Capybara, we leverage available atlases to derive single-cell transcriptome profiles of each tissue and cell type to create a high-resolution reference for classification. Therefore, gathering and cleaning of an atlas dataset can be crucial to the quality of downstream reference. Here, we demonstrate the pipeline we have used to build the Mouse Cell Atlas (MCA; (Han et al., 2018). The data can be found at https://figshare.com/articles/MCA_DGE_Data/5435866.
+
+```r
+<cleaning and gathering of the data>
+```
 
 ## Step 1: Tissue-Level Classification
 ### Application of quadratic programming on reference and sample single-cell dataset using a bulk reference
-Bulk transcriptome profiles of all tissues are mined from ARCHS4, a platform that contains most published RNA-seq and ChiP-seq datasets (Lachmann et al.,  2018). ARCHS4 obtains raw datasets from the Gene Expression Omnibus (GEO), realigned and processed through a uniform pipeline. We filtered to contain only poly-A and total RNA-seq data from C57BL/6 mice. With further filtering and preprocessing (details can be found in the method section of the paper), we landed with a reference of a total of 30 tissues. We provide our mined bulk references, including a matrix in raw counts and a matrix in reads per kilobase per million (RPKM), as a part of the Capybara package. Selection of your preferred normalization method can be applied to raw counts.
+Bulk transcriptome profiles of all tissues are mined from ARCHS4, a platform that contains most published RNA-seq and ChiP-seq datasets (Lachmann et al.,  2018). ARCHS4 obtains raw datasets from the Gene Expression Omnibus (GEO), realigned and processed through a uniform pipeline. We filtered to contain only poly-A and total RNA-seq data from C57BL/6 mice. With further filtering and preprocessing (details can be found in the method section of the paper), we landed with a reference of a total of 30 tissues. We provide our mined bulk references, including a matrix in raw counts and a matrix in reads per kilobase per million (RPKM), as a part of the Capybara package. Selection of your preferred normalization method can be applied to raw counts. Here, we will demonstrate the usage of the bulk raw counts in the pipeline.
 
-Load the bulk reference.
+**1. Load the bulk reference**
 ```r
 # File path
 bulk.raw.path <- system.file("extdata", "Bulk Reference Raw.Rds", package = "CellTagR")
@@ -42,6 +48,9 @@ bulk.rpkm.path <- system.file("extdata", "Bulk Reference RPKM.Rds", package = "C
 bulk.raw <- readRDS(bulk.raw.path)
 bulk.rpkm <- readRDS(bulk.rpkm.path)
 ```
+
+With the bulk reference, we next load the single-cell reference, such as a cell atlas, and the single-cell sample to be used. Here, we will use the Mouse Cell Atlas as an example. 
+**2.Load the single-cell reference and sample dataset**
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
