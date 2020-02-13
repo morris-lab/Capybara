@@ -8,25 +8,25 @@
 #' @param bulk If the reference data type is bulk RNA-seq. The default is bulk = FALSE
 #' @param map.df bulk mapping. The default is bulk = FALSE
 #' @keywords binarization, identity calling
-#' @note 
+#' @note
 #' @export
 #' @examples
-#' 
+#'
 binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk = FALSE, map.df = NULL) {
   p_vals <- matrix(nrow = nrow(mtx), ncol = (ncol(mtx) - 1))
   type_rank_in_order_mtx <- c()
   which_type <- c()
-  
+
   all.indx <- seq(1,length(perc.ls))
   # ref.indx <- which(unlist(lapply(perc.ls, function(x) x[[1]])) %in% rownames(ref.meta))
   # test.indx <- setdiff(all.indx, ref.indx)
-  
+
   benchmark <- list()
   benchmark.final <- c()
-  
+
   for (i in 1:length(ref.perc.ls)) {
-    curr.cell <- names(ref.perc.ls)[[i]]
-    perc_mtx <- as.data.frame(ref.perc.ls[[i]])
+    curr.cell <- names(ref.perc.ls[[i]])
+    perc_mtx <- as.data.frame(ref.perc.ls[[i]][[1]])
     if (curr.cell %in% rownames(ref.meta)) {
       curr.ct <- ref.meta[curr.cell, "cell.type"]
       if (endsWith(curr.ct, " ")) curr.ct <- substr(curr.ct, start = 1, stop = (nchar(curr.ct) - 1))
@@ -53,7 +53,7 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
       }
     }
   }
-  
+
   for (i in 1:length(benchmark)) {
     curr.name <- names(benchmark)[i]
     curr.benchmark <- benchmark[[i]]
@@ -65,7 +65,7 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
   }
   # benchmark.final <- rep(quantile(benchmark.final, 0.9), length(benchmark.final))
   # names(benchmark.final) <- names(benchmark)
-  
+
   for (i in all.indx) {
     perc_mtx<-as.matrix((perc.ls[[i]][[1]]))
     vec<-as.vector(perc_mtx)
@@ -75,15 +75,15 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
     type_rank_in_order<-colnames(type_rank)[order(type_rank,decreasing = F)]
     # type_rank_in_order[which(endsWith(type_rank_in_order, "."))] <- substr(type_rank_in_order[which(endsWith(type_rank_in_order, "."))], 1, (nchar(type_rank_in_order[which(endsWith(type_rank_in_order, "."))]) - 1))
     type_rank_in_order_mtx<-rbind(type_rank_in_order_mtx,type_rank_in_order)
-    
+
     if(mean(perc_mtx[,type_rank_in_order[1]]) >= (benchmark.final[type_rank_in_order[1]] + 0.01)) {
       which_type <- c(which_type, 0)
     } else {
       for (j in 1:(length(colnames(type_rank))-1)) {
-        
+
         a<-type_rank_in_order[1]
         b<-type_rank_in_order[j+1]
-        
+
         test<-wilcox.test(x=perc_mtx[,a],y=perc_mtx[,b],alternative = "less")
         p_vals[i,j]<-test$p.value
         if(test$p.value<.05){
@@ -97,7 +97,7 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
       }
     }
   }
-  
+
   type_rank_in_order_mtx <- as.matrix(type_rank_in_order_mtx)
   binary.mtx<-matrix(0,nrow = nrow(mtx), ncol = ncol(mtx))
   colnames(binary.mtx)<-colnames(mtx)
@@ -111,7 +111,7 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
     }
   }
   rownames(binary.mtx)<-cellnames
-  
+
   return(binary.mtx)
 }
 
