@@ -31,6 +31,18 @@ library("Capybara")
 
 ## Step 1: Tissue-Level Classification
 ### Application of quadratic programming on reference and sample single-cell dataset using a bulk reference
+Bulk transcriptome profiles of all tissues are mined from ARCHS4, a platform that contains most published RNA-seq and ChiP-seq datasets (Lachmann et al.,  2018). ARCHS4 obtains raw datasets from the Gene Expression Omnibus (GEO), realigned and processed through a uniform pipeline. We filtered to contain only poly-A and total RNA-seq data from C57BL/6 mice. With further filtering and preprocessing (details can be found in the method section of the paper), we landed with a reference of a total of 30 tissues. We provide our mined bulk references, including a matrix in raw counts and a matrix in reads per kilobase per million (RPKM), as a part of the Capybara package. Selection of your preferred normalization method can be applied to raw counts.
+
+Load the bulk reference.
+```r
+# File path
+bulk.raw.path <- system.file("extdata", "Bulk Reference Raw.Rds", package = "CellTagR")
+bulk.rpkm.path <- system.file("extdata", "Bulk Reference RPKM.Rds", package = "CellTagR")
+# Read the matrices
+bulk.raw <- readRDS(bulk.raw.path)
+bulk.rpkm <- readRDS(bulk.rpkm.path)
+```
+
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
 ### Systematic construction of a high-resolution reference
