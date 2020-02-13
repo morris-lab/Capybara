@@ -3,7 +3,7 @@
 #' This function calls single identity or multiple identities of query cells from empirical p-values. Inferred cell types are marked by 1 in a binarized matrix.
 #' @param mtx The matrix of identity scores of query cells. The row number is the total number of query cells and the column number is the number of total number of possible cell types
 #' @param ref.perc.ls Emprical p-values for reference cells
-#' @param ref.meta T
+#' @param ref.meta The celltype meta information for reference cells
 #' @param perc.ls Emprical p-values for query cells
 #' @param bulk If the reference data type is bulk RNA-seq. The default is bulk = FALSE
 #' @param map.df bulk mapping. The default is bulk = FALSE
