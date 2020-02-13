@@ -49,7 +49,8 @@ bulk.raw <- readRDS(bulk.raw.path)
 bulk.rpkm <- readRDS(bulk.rpkm.path)
 ```
 
-With the bulk reference, we next load the single-cell reference, such as a cell atlas, and the single-cell sample to be used. Here, we will use the Mouse Cell Atlas as an example. 
+With the bulk reference, we next load the single-cell reference, such as a cell atlas, and the single-cell sample to be used. The datasets to be used should be in a matrix form with each row representing a gene and each column representing a cell. Here, we use the Mouse Cell Atlas and single-cell RNA-seq data from hematopoiesis (Paul et al., 2015) as examples for demonstration. 
+
 **2.Load the single-cell reference and sample dataset**
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
