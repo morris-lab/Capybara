@@ -74,33 +74,35 @@ With the constructed single-cell reference, we apply QP to both the sample and r
 ref.sc<-high.res.ref[[1]]
 ref.meta<-high.res.ref[[2]]
 ref.df<-high.res.ref[[3]]
-# Load in query single-cell count data
+# Read in query single-cell count data
 sc.data<-capy.44h.mtx
-# Measure cell identity in the reference dataset
+# Measure cell identity in the reference dataset as a background 
 single.round.QP.analysis(ref.df, ref.sc, n.cores = 1, save.to.path = "c:/Users/Yuheng Fu/Desktop/", save.to.filename = "03_MCA_Based_scClassifier_reference_mix90_normalize_select")
-# Measure cell identity in the query dataset
+# Measure cell identity in the query dataset 
 single.round.QP.analysis(ref.df, sc.data, n.cores = 1, save.to.path = "c:/Users/Yuheng Fu/Desktop/", save.to.filename = "04_MCA_Based_scClassifier_reference_mix90_test_normalize_select")
 
 ```
 ### Binarization with Mann-Whitney
-From randomized testing, we construct two lists of empirical p-value matrices: one for all sample cells and the other for all reference cells. Using the list for all reference cells together with its annotation data, we computed a benchmark empirical p-value for each cell type. 
+A randomized test is performed using the background distributions as null to compute the occurrence probability or empirical p-values of each identity score. This test shapes the likelihood identity score occurrence as a continuous distribution, in which the cell type with the lowest likelihood rank is the classified identity. Capybara is also able to identify cells that harbor multiple identities, potentially representing cells transitioning between defined cell identities. To capture multiple cell identities, we use a Mann-Whitney (MW) test to compare the occurrence probabilities of the cell type with the lowest likelihood rank to that of other cell types, following the order from the second-lowest to the highest rank-sum. From this test, we calculate a p-value to determine whether two identities are equally likely to represent the identity of a specific cell. We stop our comparison when we identify the first cell type that is significantly (p-value < 0.05) less likely to represent one of the cell identities. A binarized matrix will be returned with each row representing a query cell and each column representing a possible cell type. 1 means inferred cell type in the matrix. 
 ``` r
+# Read in background and testing identity scores
 background.mtx <- read.csv("c:/Users/Yuheng Fu/Desktop/03_MCA_Based_scClassifier_reference_mix90_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
 mtx.test <- read.csv("c:/Users/Yuheng Fu/Desktop/04_MCA_Based_scClassifier_reference_mix90_test_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
 
-# reference Permutation
+# Conduct reference randomization to get empirical p-value matrix
 col.sub <- ncol(background.mtx) - 2
 system.time(ref.perc.list <- percentage.calc(background.mtx[,c(1:col.sub)], background.mtx[,c(1:col.sub)]))
 
-# Test Permutation
+# Conduct test randomization to get empirical p-value matrix
 perc.list <- percentage.calc(as.matrix(mtx.test[,c(1:col.sub)]), as.matrix(background.mtx[,c(1:col.sub)]))
-
 saveRDS(list(ref.perc.list, perc.list), "c:/Users/Yuheng Fu/Desktop/permutation_list.RDS")
-# Binarization and Classification Call
+
+# Binarization of inference results
 bin.count <- binarization.mann.whitney(mtx = mtx.test[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.meta, perc.ls = perc.list)
 
 ```
 ### Classification
+Finally, we return a classification table of each query cell and its inferred cell type. Cells with multiple inferred identities are marked as "Multi_ID". Cells with no significant inferred identity are marked as "unassigned"
 ``` r
 classification <- binary.to.classification(bin.count[,c(1:col.sub)])
 ```
