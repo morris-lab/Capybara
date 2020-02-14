@@ -71,7 +71,19 @@ baron.meta <- read.csv(full.fpath.meta, header = T, row.names = 1, stringsAsFact
 
 **3. Load the single-cell reference atlas and the corresponding meta data**
 
-*Note: The meta data of Mouse Cell Atlas contains 6 columns, including Cell.name, ClusterID, Tissue, Batch, Cell.Barcode, and Annotation. The annotation is what we used for high-resolution reference construction.*
+*Note: The meta data of Mouse Cell Atlas contains 6 columns, including Cell.name, ClusterID, Tissue, Batch, Cell.Barcode, and Annotation. The annotation is what we used for high-resolution reference construction. We've included the version of meta data we used along with the package. The counts data were organized as the following.*
+
+> Folder: MCA Counts
+
+>> Tissue_1 Folder
+
+>>> Counts.csv
+
+>> Tissue_2 Folder
+
+>>> Counts.csv
+
+>> ...
 
 
 
