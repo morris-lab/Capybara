@@ -5,13 +5,12 @@
 #' @param coldata.df The metadata (cell type information) for cells in the high-resolution reference
 #' @param cell.num.for.ref The number of cell numbers used to build the reference for each cell type. The default is cell.num.for.ref = 90
 #' @keywords pseudo-bulk reference
-#' @note 
+#' @note
 #' @export
 #' @examples
-#' 
-
+#'
 con.high.res.reference <- function(ref.mtx,coldata.df,cell.num.for.ref = 90) {
-  
+
   rownames(coldata.df)<-colnames(ref.mtx)
   ct.freq <- as.data.frame(table(coldata.df), stringsAsFactors = F)
   ref.meta <- data.frame()
@@ -20,8 +19,8 @@ con.high.res.reference <- function(ref.mtx,coldata.df,cell.num.for.ref = 90) {
   for (j in 1:nrow(ct.freq)) {
     curr.ct.at.test <- ct.freq$coldata.df[j]
     curr.cell.involve <- rownames(coldata.df)[which(coldata.df == curr.ct.at.test)]
-    if (ct.freq$Freq[j] >= cell.num.for.ref) { 
-      sample.ref.cell <- c(get.most.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2), 
+    if (ct.freq$Freq[j] >= cell.num.for.ref) {
+      sample.ref.cell <- c(get.most.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2),
                            get.lest.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2))
     } else {
       sample.ref.cell <- sample(curr.cell.involve, size = cell.num.for.ref, replace = T)
@@ -36,7 +35,7 @@ con.high.res.reference <- function(ref.mtx,coldata.df,cell.num.for.ref = 90) {
     } else {
       ref.meta <- rbind(ref.meta, curr.meta)
       ref.sc <- cbind(ref.sc, curr.sc)
-    } 
+    }
   }
   ref.df <- ref.construction(ref.sc, ref.meta, "cell.type")
   return(list(ref.sc, ref.meta, ref.df))
