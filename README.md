@@ -69,6 +69,11 @@ baron.expr <- read.csv(full.fpath.raw, header = T, row.names = 1, stringsAsFacto
 baron.meta <- read.csv(full.fpath.meta, header = T, row.names = 1, stringsAsFactors = F)
 ```
 
+**3. Load the single-cell reference atlas and the corresponding meta data**
+
+*Note: The meta data of Mouse Cell Atlas contains 6 columns, including Cell.name, ClusterID, Tissue, Batch, Cell.Barcode, and Annotation. The annotation is what we used for high-resolution reference construction.*
+
+
 
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
