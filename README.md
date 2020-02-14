@@ -135,8 +135,9 @@ for (k in 1:length(unq.tissue)) {
 
 **6. Selection of 90 cells from each tissue to construct a QP background**
 
-With all QP scores calculated on the bulk transcriptome profiles of all tissues, we select 90 most relevant cells of each tissue in the MCA (90 highest scored cells in the MCA to each bulk tissue) as a QP background. We use this QP background further to map our sample single-cell data. Assuming that each cell in each cell type of the MCA takes a unique combination of QP scores to each tissue in ARCHS4, cells in the sample that share similar combination to those in MCA are marked to relate to the corresponding tissue in the MCA. Here, we demonstrate how we constructed the backgrounds. We included the background matrices along with the packages such that it can be directly used for convenience.
+With all QP scores calculated on the bulk transcriptome profiles of all tissues, we select 90 most relevant cells of each tissue in the MCA (90 highest scored cells in the MCA to each bulk tissue) as a QP background. We use this QP background further to map our sample single-cell data. Assuming that each cell in each cell type of the MCA takes a unique combination of QP scores to each tissue in ARCHS4, cells in the sample that share similar combination to those in MCA are marked to relate to the corresponding tissue in the MCA. Here, we demonstrate how we constructed the backgrounds as following. We included the background matrices along with the packages such that it can be directly used for convenience.
 
+**(a) Get QP scores for all annotated cells**
 ```r
 # Read the QP files from the directory
 qp.files.to.read.clean <- list.files("./MCA_All_Tissue_QP/", full.names = T)
@@ -165,6 +166,39 @@ for (i in 1:length(qp.files.to.read.clean)) {
 full.qp.mtx.known.annotation.qp.score.only <- full.qp.mtx.known.annotation[,c(1:(ncol(full.qp.mtx.known.annotation) - 2))]
 ```
 
+**(b) Selection of 90 cells**
+```r
+# Create a map between MCA and ARCHS4
+map.df <- data.frame(mca.tissue = c("Embryonic-Mesenchyme", "Embryonic-Stem-Cell", "Trophoblast-Stem-Cell", "Fetal_Brain",
+                                   "Neonatal-Calvaria","Fetal_Intestine", "Fetal-Liver", "Fetal_Lung", "Fetal_Stomache",
+                                   "Neonatal-Heart", "Neonatal-Muscle",
+                                   "Neonatal-Rib", "Neonatal-Skin",  "NeonatalPancreas"),
+                     corresponding = c("frxn_embryo", "frxn_embryo", "frxn_embryo", "frxn_brain","frxn_brain",
+                                       "frxn_small.intestine", "frxn_liver", 
+                                       "frxn_lung", "frxn_stomach",  "frxn_heart", "frxn_muscle", "frxn_muscle", 
+                                       "frxn_skin", "frxn_pancreas"),
+                     stringsAsFactors = F)
+
+# Identify top 90 cells for each tissue
+tm.tissue <- unique(map.df$tm.tissue)
+cell.selector <- c()
+n.sample <- 90
+for (i in 1:length(tm.tissue)) {
+  curr.tissue <- tm.tissue[i]
+  cell.names <- rownames(mca.meta)[which(mca.meta$tissue == curr.tissue)]
+  curr.qp.subset <- full.qp.mtx.known.annotation.qp.score.only[cell.names, ]
+  curr.map <- map.df$corresponding[which(map.df$tm.tissue == curr.tissue)]
+  if (length(curr.map) <= 1){
+    curr.qp.subset.sub <- data.frame(score = curr.qp.subset[,curr.map], cell.name = cell.names, stringsAsFactors = F)
+  } else {
+    curr.qp.subset.sub <- data.frame(score = rowSums(curr.qp.subset[,curr.map]), cell.name = cell.names, stringsAsFactors = F)
+  }
+  curr.qp.subset.sub.sort <- curr.qp.subset.sub[order(-curr.qp.subset.sub$score), ]
+  cells.to.incl <- curr.qp.subset.sub.sort$cell.name[1:n.sample]
+  
+  cell.selector <- c(cell.selector, cells.to.incl)
+}
+```
 
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
