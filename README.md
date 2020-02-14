@@ -254,7 +254,9 @@ new.corr.bin <- as.data.frame(new.corr.bin)
 ```
 
 **5. Counting the tissues and select the final tissue types**
+
 Count the frequency of occurrence of each tissue in the tissue list.
+
 ```r
 # Count
 count.in.cat <- c()
