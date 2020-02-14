@@ -55,6 +55,11 @@ With the bulk reference, we next load the single-cell reference, such as a cell 
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
+``` r
+function 
+1+1
+
+```
 ### Systematic construction of a high-resolution reference
 ### Application of quadratic programming on the self-established reference with the sample
 ## Step 3: Discrete Cell Type Classification and Multiple Identity Scoring
