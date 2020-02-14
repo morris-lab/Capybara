@@ -36,14 +36,23 @@ single.round.QP.analysis <- function(ref, sc.data, scale.bulk.sc = "scale", unix
   norm.ls.sc <- gene.intersect.sub(norm.bulk, norm.sc.mtx)
   scale.ls.sc <- gene.intersect.sub(scale.norm.sc, norm.sc.mtx)
 
+  log.norm.ls.sc <- norm.ls.sc
+  log.scale.ls.sc <- scale.ls.sc
   # Finish the log-normalization
   if (log.bulk & log.sc) {
     log.norm.ls.sc <- lapply(norm.ls.sc, log1p)
     log.scale.ls.sc <- lapply(scale.ls.sc, log1p)
   } else {
-    log.norm.ls.sc <- norm.ls.sc
-    log.scale.ls.sc <- scale.ls.sc
+    if (log.bulk) {
+      log.norm.ls.sc[[1]] <- log1p(log.norm.ls.sc[[1]])
+      log.scale.ls.sc[[1]] <- log1p(log.scale.ls.sc[[1]])
+    }
+    if (log.sc) {
+      log.norm.ls.sc[[2]] <- log1p(log.norm.ls.sc[[2]])
+      log.scale.ls.sc[[2]] <- log1p(log.scale.ls.sc[[2]])
+    }
   }
+  
   # Run QP and save to file
   if (scale.bulk.sc == "scale") {
     qp.rslt <- sc.quad.prog.run(as.matrix(log.scale.ls.sc[[1]]),
