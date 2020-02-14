@@ -42,8 +42,8 @@ Bulk transcriptome profiles of all tissues are mined from ARCHS4, a platform tha
 **1. Load the bulk reference**
 ```r
 # File path
-bulk.raw.path <- system.file("extdata", "Bulk Reference Raw.Rds", package = "CellTagR")
-bulk.rpkm.path <- system.file("extdata", "Bulk Reference RPKM.Rds", package = "CellTagR")
+bulk.raw.path <- system.file("extdata", "Bulk Reference Raw.Rds", package = "Capybara")
+bulk.rpkm.path <- system.file("extdata", "Bulk Reference RPKM.Rds", package = "Capybara")
 # Read the matrices
 bulk.raw <- readRDS(bulk.raw.path)
 bulk.rpkm <- readRDS(bulk.rpkm.path)
@@ -69,24 +69,67 @@ baron.expr <- read.csv(full.fpath.raw, header = T, row.names = 1, stringsAsFacto
 baron.meta <- read.csv(full.fpath.meta, header = T, row.names = 1, stringsAsFactors = F)
 ```
 
-**3. Load the single-cell reference atlas and the corresponding meta data**
+**3. Load the single-cell reference meta data**
 
-*Note: The meta data of Mouse Cell Atlas contains 6 columns, including Cell.name, ClusterID, Tissue, Batch, Cell.Barcode, and Annotation. The annotation is what we used for high-resolution reference construction. We've included the version of meta data we used along with the package. The counts data were organized as the following.*
+*Note: The meta data of Mouse Cell Atlas contains 6 columns, including Cell.name, ClusterID, Tissue, Batch, Cell.Barcode, and Annotation. The annotation is what we used for high-resolution reference construction. We've included the version of meta data we used along with the package.*
+
+```r
+# Read the meta data
+mca.meta.fpath <- system.file("extdata", "MCA_CellAssignments.csv", package = "Capybara")
+mca <- read.csv(mca.meta.fpath, row.names = 1, header = T, stringsAsFactors = F)
+# Clean up the meta data
+mca.meta <- data.frame(row.names = mca$Cell.name, 
+                       tissue = mca$Tissue,
+                       cell.type = mca$Annotation,
+                       stringsAsFactors = F)
+```
+
+**4. Load the single-cell reference atlas and apply QP tissue-by-tissue**
+
+*Due to the large size of MCA count data, we did ***NOT*** include the counts along with the package. The counts data were organized in the following manner.*
 
 > Folder: MCA Counts
 
 >> Tissue_1 Folder
 
->>> Counts.csv
+>>> count.csv
 
 >> Tissue_2 Folder
 
->>> Counts.csv
+>>> count.csv
 
 >> ...
 
+```r
+# List all possible files and tissues in the Mouse Cell Atlas
+file.ls <- list.files("./MCA_Counts/", full.names = T)
+base.nms <- basename(file.ls)
 
+# Identify the tissues
+unq.tissue <- unique(base.nms)
 
+# Set a path to save all QP files for all tissues
+general.path.to.save <- "./MCA_All_Tissue_QP/"
+for (k in 1:length(unq.tissue)) {
+  curr.tissue <- unq.tissue[k]
+  curr.filename <- paste0("0", k, "_", curr.tissue, "_Bulk_ARCHS4_scale.csv")
+  
+  file.base.name <- base.nms[which(startsWith(base.nms, curr.tissue))][1]
+  file.full <- file.ls[which(startsWith(base.nms, curr.tissue))][1]
+  
+  print(curr.tissue)
+  
+  sc.data <- read.csv(paste0(file.full, "/count.csv"), header = T, row.names = 1, stringsAsFactors = F)
+  
+  if (all(is.na(sc.data))) {
+    print("There is no data in this counting matrix!")
+  } else {
+    single.round.QP.analysis(bulk.raw, sc.data, scale.bulk.sc = "scale", unix.par = TRUE, 
+                             force.eq = 1, n.cores = 4, save.to.path = general.path.to.save, 
+                             save.to.filename = curr.filename)
+  }
+}
+```
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
