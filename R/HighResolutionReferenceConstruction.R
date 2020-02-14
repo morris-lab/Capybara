@@ -9,7 +9,7 @@
 #' @export
 #' @examples
 #'
-con.high.res.reference <- function(ref.mtx,coldata.df,cell.num.for.ref = 90) {
+construct.high.res.reference <- function(ref.mtx,coldata.df,cell.num.for.ref = 90) {
 
   rownames(coldata.df)<-colnames(ref.mtx)
   ct.freq <- as.data.frame(table(coldata.df), stringsAsFactors = F)
