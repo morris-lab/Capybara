@@ -55,32 +55,54 @@ With the bulk reference, we next load the single-cell reference, such as a cell 
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
-After tissue-level classification, relevant cell types are selected from cell atlas and built as a single cell reference dataset. As an alternative, users could also use their own single-cell reference dataset i
-``` r
-function 
-1+1
-
-```
+After tissue-level classification, relevant cell types are selected from cell atlas and built as a single cell reference dataset. As an alternative, users could also use their own single-cell reference dataset to benchmark their samples.
 ### Systematic construction of a high-resolution reference
+
+To alleviate the effect of technical variations, we construct pseudo-bulk references for each reference cell type. By default, 90 cells of each cell type would be used to build the reference. The construct.high.res.reference function returns a list containing expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference.
 ``` r
+# Construction of a high-resolution reference
+high.res.ref<-construct.high.res.reference(ref.mtx = capy.44h.mtx,coldata.df = capy.44h.meta)
 
 ```
 ### Application of quadratic programming on the self-established reference with the sample
 ## Step 3: Discrete Cell Type Classification and Multiple Identity Scoring
-``` r
 
-```
 ### Empirical p-value calculation
+With the constructed single-cell reference, we apply QP to both the sample and reference single-cell datasets to generate continuous measurements of cell identity. The result of this step includes two lists of p-value matrices: one for the reference and the other for the sample. For each cell, each column of the p-value matrix denotes a cell type, while each row describes each round of 50 (default).
 ``` r
+# Get expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference
+ref.sc<-high.res.ref[[1]]
+ref.meta<-high.res.ref[[2]]
+ref.df<-high.res.ref[[3]]
+# Load in query single-cell count data
+sc.data<-capy.44h.mtx
+# Measure cell identity in the reference dataset
+single.round.QP.analysis(ref.df, ref.sc, n.cores = 1, save.to.path = "c:/Users/Yuheng Fu/Desktop/", save.to.filename = "03_MCA_Based_scClassifier_reference_mix90_normalize_select")
+# Measure cell identity in the query dataset
+single.round.QP.analysis(ref.df, sc.data, n.cores = 1, save.to.path = "c:/Users/Yuheng Fu/Desktop/", save.to.filename = "04_MCA_Based_scClassifier_reference_mix90_test_normalize_select")
 
 ```
 ### Binarization with Mann-Whitney
+From randomized testing, we construct two lists of empirical p-value matrices: one for all sample cells and the other for all reference cells. Using the list for all reference cells together with its annotation data, we computed a benchmark empirical p-value for each cell type. 
 ``` r
+background.mtx <- read.csv("c:/Users/Yuheng Fu/Desktop/03_MCA_Based_scClassifier_reference_mix90_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test <- read.csv("c:/Users/Yuheng Fu/Desktop/04_MCA_Based_scClassifier_reference_mix90_test_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+
+# reference Permutation
+col.sub <- ncol(background.mtx) - 2
+system.time(ref.perc.list <- percentage.calc(background.mtx[,c(1:col.sub)], background.mtx[,c(1:col.sub)]))
+
+# Test Permutation
+perc.list <- percentage.calc(as.matrix(mtx.test[,c(1:col.sub)]), as.matrix(background.mtx[,c(1:col.sub)]))
+
+saveRDS(list(ref.perc.list, perc.list), "c:/Users/Yuheng Fu/Desktop/permutation_list.RDS")
+# Binarization and Classification Call
+bin.count <- binarization.mann.whitney(mtx = mtx.test[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.meta, perc.ls = perc.list)
 
 ```
 ### Classification
 ``` r
-
+classification <- binary.to.classification(bin.count[,c(1:col.sub)])
 ```
 ## Analysis of Cells with Multiple Identities
 ``` r
