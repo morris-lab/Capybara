@@ -133,7 +133,38 @@ for (k in 1:length(unq.tissue)) {
 }
 ```
 
-**6. Selection of 90 cells from each tissue to construct a QP background*
+**6. Selection of 90 cells from each tissue to construct a QP background**
+
+With all QP scores calculated on the bulk transcriptome profiles of all tissues, we select 90 most relevant cells of each tissue in the MCA (90 highest scored cells in the MCA to each bulk tissue) as a QP background. We use this QP background further to map our sample single-cell data. Assuming that each cell in each cell type of the MCA takes a unique combination of QP scores to each tissue in ARCHS4, cells in the sample that share similar combination to those in MCA are marked to relate to the corresponding tissue in the MCA. Here, we demonstrate how we constructed the backgrounds. We included the background matrices along with the packages such that it can be directly used for convenience.
+
+```r
+# Read the QP files from the directory
+qp.files.to.read.clean <- list.files("./MCA_All_Tissue_QP/", full.names = T)
+
+full.qp.mtx.known.annotation <- data.frame()
+full.qp.mtx.unknown.annotation <- data.frame()
+for (i in 1:length(qp.files.to.read.clean)) {
+  curr.file <- qp.files.to.read.clean[i]
+  curr.qp.rslt <- read.csv(curr.file, header = T, row.names = 1, stringsAsFactors = F)
+  
+  cells.to.keep <- intersect(rownames(mca.meta), rownames(curr.qp.rslt))
+  cells.unlabel <- setdiff(rownames(curr.qp.rslt), cells.to.keep)
+  
+  curr.sub.mtx.to.keep <- curr.qp.rslt[cells.to.keep, ]
+  curr.sub.mtx.unlabel <- curr.qp.rslt[cells.unlabel, ]
+  
+  if (nrow(full.qp.mtx.known.annotation) <= 0) {
+    full.qp.mtx.known.annotation <- curr.sub.mtx.to.keep
+    full.qp.mtx.unknown.annotation <- curr.sub.mtx.unlabel
+  } else {
+    full.qp.mtx.known.annotation <- rbind(full.qp.mtx.known.annotation, curr.sub.mtx.to.keep)
+    full.qp.mtx.unknown.annotation <- rbind(full.qp.mtx.unknown.annotation, curr.sub.mtx.unlabel)
+  }
+}
+
+full.qp.mtx.known.annotation.qp.score.only <- full.qp.mtx.known.annotation[,c(1:(ncol(full.qp.mtx.known.annotation) - 2))]
+```
+
 
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
