@@ -9,16 +9,15 @@
 #' @export
 #' @examples
 #'
-construct.high.res.reference <- function(ref.mtx,coldata.df,cell.num.for.ref = 90) {
+construct.high.res.reference <- function(ref.mtx, coldata.df, criteria,cell.num.for.ref = 90) {
 
-  rownames(coldata.df)<-colnames(ref.mtx)
-  ct.freq <- as.data.frame(table(coldata.df), stringsAsFactors = F)
+  ct.freq <- as.data.frame(table(coldata.df[,criteria]), stringsAsFactors = F)
   ref.meta <- data.frame()
   ref.sc <- data.frame()
   mca.counts.all.involved.sub<-ref.mtx
   for (j in 1:nrow(ct.freq)) {
-    curr.ct.at.test <- ct.freq$coldata.df[j]
-    curr.cell.involve <- rownames(coldata.df)[which(coldata.df == curr.ct.at.test)]
+    curr.ct.at.test <- ct.freq[j, criteria]
+    curr.cell.involve <- rownames(coldata.df)[which(coldata.df[,criteria] == curr.ct.at.test)]
     if (ct.freq$Freq[j] >= cell.num.for.ref) {
       sample.ref.cell <- c(get.most.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2),
                            get.lest.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2))
