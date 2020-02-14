@@ -49,9 +49,27 @@ bulk.raw <- readRDS(bulk.raw.path)
 bulk.rpkm <- readRDS(bulk.rpkm.path)
 ```
 
-With the bulk reference, we next load the single-cell reference, such as a cell atlas, and the single-cell sample to be used. The datasets to be used should be in a matrix form with each row representing a gene and each column representing a cell. Here, we use the Mouse Cell Atlas and single-cell RNA-seq data from hematopoiesis (Paul et al., 2015) as examples for demonstration. 
+With the bulk reference, we next load the single-cell reference, such as a cell atlas, and the single-cell sample to be used. The datasets to be used should be in a matrix form with each row representing a gene and each column representing a cell. Here, we use the Mouse Cell Atlas (MCA) as background and single-cell RNA-seq data of mouse pancreatic cells (Baron et al., 2016) as examples for demonstration. MCA can be obtained from https://figshare.com/articles/MCA_DGE_Data/5435866. We included the mouse pancreatic dataset along with the package.
 
-**2.Load the single-cell reference and sample dataset**
+**2.Load the single-cell sample dataset and the corresponding meta data**
+
+*Note: The meta data of this file contains 2 columns, where the first column represents cell.type and the second column represents barcode.*
+
+```r
+# Read in the pancreatic data file that come with the package
+fpath <- system.file("extdata", "baron_dataset.zip", package = "Capybara")
+extract.dir <- "."
+# Extract the dataset
+unzip(fpath, overwrite = FALSE, exdir = ".")
+# Identify the full path
+full.fpath.meta <- paste0(extract.dir, "/", "baron_et_al_pancreatic_meta.csv")
+full.fpath.raw <- paste0(extract.dir, "/", "baron_et_al_pancreatic.csv")
+# Load the count matrix and the meta data
+baron.expr <- read.csv(full.fpath.raw, header = T, row.names = 1, stringsAsFactors = F)
+baron.meta <- read.csv(full.fpath.meta, header = T, row.names = 1, stringsAsFactors = F)
+```
+
+
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
