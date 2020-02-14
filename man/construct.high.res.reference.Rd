@@ -4,7 +4,8 @@
 \alias{construct.high.res.reference}
 \title{Systematic construction of a high-resolution reference}
 \usage{
-construct.high.res.reference(ref.mtx, coldata.df, cell.num.for.ref = 90)
+construct.high.res.reference(ref.mtx, coldata.df, criteria,
+  cell.num.for.ref = 90)
 }
 \arguments{
 \item{ref.mtx}{The single-cell reference dataset}

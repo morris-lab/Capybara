@@ -16,11 +16,11 @@ construct.high.res.reference <- function(ref.mtx, coldata.df, criteria,cell.num.
   ref.sc <- data.frame()
   mca.counts.all.involved.sub<-ref.mtx
   for (j in 1:nrow(ct.freq)) {
-    curr.ct.at.test <- ct.freq[j, criteria]
+    curr.ct.at.test <- as.character(ct.freq[j,1])
     curr.cell.involve <- rownames(coldata.df)[which(coldata.df[,criteria] == curr.ct.at.test)]
     if (ct.freq$Freq[j] >= cell.num.for.ref) {
       sample.ref.cell <- c(get.most.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2),
-                           get.lest.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2))
+                           get.least.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2))
     } else {
       sample.ref.cell <- sample(curr.cell.involve, size = cell.num.for.ref, replace = T)
     }

@@ -3,6 +3,8 @@
 #' This function returns index of cells that are the most connected within a cell type
 #' @param mtx The normalized reference count matrix
 #' @param n.sample The number of reference cells to be included within each pseudo-bulk
+#' @export
+#'
 get.most.connected <- function(mtx, n.sample) {
   corr.mtx <- WGCNA::cor(mtx)
   corr.mtx.upper <- corr.mtx * upper.tri(corr.mtx)
@@ -28,7 +30,9 @@ get.most.connected <- function(mtx, n.sample) {
 #' This function returns index of cells that are the least connected within a cell type
 #' @param mtx The normalized reference count matrix
 #' @param n.sample The number of reference cells to be included within each pseudo-bulk
-get.lest.connected <- function(mtx, n.sample) {
+#' @export
+#'
+get.least.connected <- function(mtx, n.sample) {
   corr.mtx <- WGCNA::cor(mtx)
   corr.mtx.upper <- corr.mtx * upper.tri(corr.mtx)
   corr.mtx.melt <- melt(corr.mtx.upper)
@@ -52,6 +56,8 @@ get.lest.connected <- function(mtx, n.sample) {
 #' This function returns index of cells that are the most connected within a cell type
 #' @param mtx The normalized reference count matrix
 #' @param n.sample The number of reference cells to be included within each pseudo-bulk
+#' @export
+#'
 get.mid.connected <- function(mtx, n.sample) {
   corr.mtx <- WGCNA::cor(mtx)
   corr.mtx.upper <- corr.mtx * upper.tri(corr.mtx)
