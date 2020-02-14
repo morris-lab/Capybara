@@ -63,7 +63,15 @@ baron.expr <- read.csv(full.fpath.raw, header = T, row.names = 1, stringsAsFacto
 baron.meta <- read.csv(full.fpath.meta, header = T, row.names = 1, stringsAsFactors = F)
 ```
 
-**3. Load the single-cell reference meta data**
+**3. Application of QP on the sample single-cell data**
+
+```r
+single.round.QP.analysis(bulk.raw, baron.expr, scale.bulk.sc = "scale", unix.par = TRUE, 
+                         force.eq = 1, n.cores = 4, save.to.path = "./", 
+                         save.to.filename = "baron_bulk_classification_qp")
+```
+
+**4. Load the single-cell reference meta data**
 
 *Note: The meta data of Mouse Cell Atlas contains 6 columns, including Cell.name, ClusterID, Tissue, Batch, Cell.Barcode, and Annotation. The annotation is what we used for high-resolution reference construction. We've included the version of meta data we used along with the package.*
 
@@ -78,9 +86,9 @@ mca.meta <- data.frame(row.names = mca$Cell.name,
                        stringsAsFactors = F)
 ```
 
-**4. Load the single-cell reference atlas and apply QP tissue-by-tissue**
+**5. Load the single-cell reference atlas and apply QP tissue-by-tissue**
 
-*Due to the large size of MCA count data, we did ***NOT*** include the counts along with the package. The counts data were organized in the following manner.*
+*Due to the large size of MCA count data, we did* ***NOT*** *include the counts along with the package. We further separated MCA into fetal/neonatal/embryonic and adult categories. The counts data were organized in the following manner.*
 
 > Folder: MCA Counts
 
@@ -106,7 +114,7 @@ unq.tissue <- unique(base.nms)
 general.path.to.save <- "./MCA_All_Tissue_QP/"
 for (k in 1:length(unq.tissue)) {
   curr.tissue <- unq.tissue[k]
-  curr.filename <- paste0("0", k, "_", curr.tissue, "_Bulk_ARCHS4_scale.csv")
+  curr.filename <- paste0("0", k, "_", curr.tissue, "_Bulk_ARCHS4")
   
   file.base.name <- base.nms[which(startsWith(base.nms, curr.tissue))][1]
   file.full <- file.ls[which(startsWith(base.nms, curr.tissue))][1]
@@ -125,7 +133,11 @@ for (k in 1:length(unq.tissue)) {
 }
 ```
 
+**6. Selection of 90 cells from each tissue to construct a QP background*
+
+
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
+
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
 After tissue-level classification, relevant cell types are selected from cell atlas and built as a single cell reference dataset. As an alternative, users could also use their own single-cell reference dataset to benchmark their samples.
 ### Systematic construction of a high-resolution reference
