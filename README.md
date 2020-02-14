@@ -1,8 +1,10 @@
 # R Package - Capybara
+
 Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete entities as well as cells with multiple identities. This package have a dependency on R version (R >= 3.5.0). For details regarding the methods, usage and application, please refer to the following papaer - *\<Fill this in\>*.
 
 ## Installation
 ### Dependencies
+
 Most dependency package can be installed along with Capybara through CRAN. The following dependency may need to be installed manually through BioConductor (Instructions can also be found here: https://bioconductor.org/).
 
 Install BiocManager
@@ -31,6 +33,7 @@ library("Capybara")
 
 ## Step 1: Tissue-Level Classification
 ### Application of quadratic programming on reference and sample single-cell dataset using a bulk reference
+
 Bulk transcriptome profiles of all tissues are mined from ARCHS4, a platform that contains most published RNA-seq and ChiP-seq datasets (Lachmann et al.,  2018). ARCHS4 obtains raw datasets from the Gene Expression Omnibus (GEO), realigned and processed through a uniform pipeline. We filtered to contain only poly-A and total RNA-seq data from C57BL/6 mice. With further filtering and preprocessing (details can be found in the method section of the paper), we landed with a reference of a total of 30 tissues. We provide our mined bulk references, including a matrix in raw counts and a matrix in reads per kilobase per million (RPKM), as a part of the Capybara package. Selection of your preferred normalization method can be applied to raw counts. Here, we will demonstrate the usage of the bulk raw counts in the pipeline.
 
 **1. Load the bulk reference**
@@ -204,6 +207,68 @@ saveRDS(full.qp.mtx.known.annotation.qp.score.only[cell.selector, ], "./MCA_embr
 *Note: This constructed QP background can be saved and reused and does not need to be reconstructed every time.*
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
+
+To find the correlated tissue in the reference to the sample single-cell dataset, we use a correlation based method. In brief, we calculate Pearson's correlation of the QP scores in a pairwise manner between each cell in the sample and each cell in the reference. Recall the assumption that cells in the sample that share similar combination of QP scores to those in MCA are marked to relate to the corresponding tissue in the MCA. If there is a significant percentage of reference cells of a tissue (over 70%) mapped to a cell, we record the tissue label. Then the frequency of each tissue label is calculated. Tissues with a frequency at least 0.5% (for cell number > 10,000) or at least 100 cells will be selected for further analysis. 
+
+**1. Load the QP background matrix**
+```r
+background.qp.fpath <- system.file("extdata", "MCA Adult Background.Rds", package = "Capybara")
+background.mtx <- readRDS(background.qp.fpath)
+```
+
+**2. Load the QP scores of the sample**
+
+```r
+## Load QP results
+qp.rslt <- read.csv("./baron_bulk_classification_qp_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+
+## Reshape the data
+qp.rslt.sub <- qp.rslt[,c(1:(ncol(qp.rslt) - 2))]
+```
+
+**3. Correlation calculation**
+
+*Note: we use WGCNA to calculate the correlation*
+
+```r
+mtx.test <- t(qp.rslt.sub[, colnames(background.mtx)])
+ref.test <- t(background.mtx)
+
+# Pearson's Correlation Calculation
+corr.mtx <- WGCNA::cor(ref.test, mtx.test)
+```
+
+**4. Binarization based on correlation**
+We perform binarization based on the correlation estimates.
+
+```r
+# Setup a correlation cutoff to the 90th quantile of the correlation matrix
+correlation.cutoff <- quantile(corr.mtx, 0.90)
+
+# Binarization based on the correlation
+new.corr.bin <- corr.mtx
+new.corr.bin[which(new.corr.bin >= correlation.cutoff)] <- 1
+new.corr.bin[which(new.corr.bin < correlation.cutoff)] <- 0
+new.corr.bin <- as.data.frame(new.corr.bin)
+```
+
+**5. Counting the tissues and select the final tissue types**
+Count the frequency of occurrence of each tissue in the tissue list.
+```r
+# Count
+count.in.cat <- c()
+unique.cat <- unique(unlist(lapply(strsplit(rownames(new.corr.bin), "_"), function(x) x[1])))
+for (uc in unique.cat) {
+  curr.subset <- new.corr.bin[which(startsWith(rownames(new.corr.bin), uc)), c(1:1886)]
+  count.in.cat[uc] <- sum(colSums(curr.subset) >= nrow(curr.subset) * 0.7)
+}
+
+count.in.cat <- as.data.frame(count.in.cat)
+count.in.cat$perc <- round(count.in.cat$count.in.cat *100/sum(count.in.cat$count.in.cat), digits = 3)
+
+# Check frequency
+final.cell.types.adult <- rownames(count.in.cat)[which(count.in.cat$count.in.cat > 100)]
+```
 
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
 After tissue-level classification, relevant cell types are selected from cell atlas and built as a single cell reference dataset. As an alternative, users could also use their own single-cell reference dataset to benchmark their samples.
