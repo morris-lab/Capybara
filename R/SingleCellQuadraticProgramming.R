@@ -52,11 +52,7 @@ single.round.QP.analysis <- function(ref, sc.data, scale.bulk.sc = "scale", unix
       log.scale.ls.sc[[2]] <- log1p(log.scale.ls.sc[[2]])
     }
   }
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> 755c66b6363aaf169f6e83a1a6b3289bf57973f0
   # Run QP and save to file
   if (scale.bulk.sc == "scale") {
     qp.rslt <- sc.quad.prog.run(as.matrix(log.scale.ls.sc[[1]]),
