@@ -62,9 +62,27 @@ function
 
 ```
 ### Systematic construction of a high-resolution reference
+``` r
+
+```
 ### Application of quadratic programming on the self-established reference with the sample
 ## Step 3: Discrete Cell Type Classification and Multiple Identity Scoring
+``` r
+
+```
 ### Empirical p-value calculation
+``` r
+
+```
 ### Binarization with Mann-Whitney
+``` r
+
+```
 ### Classification
+``` r
+
+```
 ## Analysis of Cells with Multiple Identities
+``` r
+
+```
