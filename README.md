@@ -239,6 +239,7 @@ corr.mtx <- WGCNA::cor(ref.test, mtx.test)
 ```
 
 **4. Binarization based on correlation**
+
 We perform binarization based on the correlation estimates.
 
 ```r
