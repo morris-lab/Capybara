@@ -37,7 +37,7 @@ single.round.QP.analysis <- function(ref, sc.data, scale.bulk.sc = "scale", unix
   scale.ls.sc <- gene.intersect.sub(scale.norm.sc, norm.sc.mtx)
 
   # Finish the log-normalization
-  if (logging) {
+  if (log.bulk & log.sc) {
     log.norm.ls.sc <- lapply(norm.ls.sc, log1p)
     log.scale.ls.sc <- lapply(scale.ls.sc, log1p)
   } else {
