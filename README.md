@@ -28,12 +28,6 @@ Load the package
 ```r
 library("Capybara")
 ```
-## Preparation Step: Single-Cell Atlas Gathering, Cleaning and Preprocessing
-In Capybara, we leverage available atlases to derive single-cell transcriptome profiles of each tissue and cell type to create a high-resolution reference for classification. Therefore, gathering and cleaning of an atlas dataset can be crucial to the quality of downstream reference. Here, we demonstrate the pipeline we have used to build the Mouse Cell Atlas (MCA; (Han et al., 2018). The data can be found at https://figshare.com/articles/MCA_DGE_Data/5435866.
-
-```r
-<cleaning and gathering of the data>
-```
 
 ## Step 1: Tissue-Level Classification
 ### Application of quadratic programming on reference and sample single-cell dataset using a bulk reference
