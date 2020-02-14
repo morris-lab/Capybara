@@ -198,8 +198,10 @@ for (i in 1:length(tm.tissue)) {
   
   cell.selector <- c(cell.selector, cells.to.incl)
 }
+saveRDS(full.qp.mtx.known.annotation.qp.score.only[cell.selector, ], "./MCA_embryonic_background.RDS")
 ```
 
+*Note: This constructed QP background can be saved and reused and does not need to be reconstructed every time.*
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 
