@@ -55,6 +55,7 @@ With the bulk reference, we next load the single-cell reference, such as a cell 
 
 ### Identification of tissue correlate in the reference to the sample single-cell dataset
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
+After tissue-level classification, relevant cell types are selected from cell atlas and built as a single cell reference dataset. As an alternative, users could also use their own single-cell reference dataset i
 ``` r
 function 
 1+1
