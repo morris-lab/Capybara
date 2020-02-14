@@ -81,3 +81,12 @@ get.mid.connected <- function(mtx, n.sample) {
   return(sample.list[1:n.sample])
 }
 
+
+# Create the function.
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+
+
