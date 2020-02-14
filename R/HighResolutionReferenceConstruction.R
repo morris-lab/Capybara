@@ -1,6 +1,6 @@
 #' Systematic construction of a high-resolution reference
 #'
-#' This function returns a 
+#' Create a pseudo-bulk reference by sampling 90-cells from each cell type to maintain cellular resolution while increasing transcriptional resolution
 #' @param ref.mtx The single-cell reference dataset
 #' @param coldata.df The metadata (cell type information) for cells in the high-resolution reference
 #' @param cell.num.for.ref The number of cell numbers used to build the reference for each cell type. The default is cell.num.for.ref = 90

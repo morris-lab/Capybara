@@ -3,6 +3,7 @@
 export(binarization.mann.whitney)
 export(binary.to.classification)
 export(calc.scale.ratio)
+export(con.high.res.reference)
 export(gene.intersect.sub)
 export(normalize.dt)
 export(perc.calc.aux)
