@@ -393,6 +393,9 @@ ggplot(table.freq.melt, aes(x = Capybara.Call, y = variable, size=ifelse(value==
 ```
 
 Below is a dot plot example for this pancreatic dataset to show agreement.
+<p align="center">
+    <img src="/examples/pancreatic dot plot.png" height="600" width="600">
+</p>
 
 
 ## Analysis of Cells with Multiple Identities
