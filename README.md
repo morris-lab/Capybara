@@ -281,13 +281,12 @@ To alleviate the effect of technical variations, we construct pseudo-bulk refere
 ``` r
 # Construction of a high-resolution reference
 ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = coldata.df, criteria = "cell.type.alone")
+# Get expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference
+ref.df <- ref.construction(ref.list[[1]], ref.list[[2]], "cell.type")
 
 ```
 ### Application of quadratic programming on the self-established reference with the sample
 ``` r
-# Get expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference
-ref.df <- ref.construction(ref.list[[1]], ref.list[[2]], "cell.type")
-
 # Read in query single-cell count data
 sc.data<-capy.44h.mtx
 # Measure cell identity in the reference dataset as a background 
