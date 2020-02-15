@@ -388,7 +388,7 @@ ggplot(table.freq.melt, aes(x = Capybara.Call, y = variable, size=ifelse(value==
 
 Below is a dot plot example for this pancreatic dataset to show agreement.
 <p align="center">
-    <img src="/exmples/.png" height="480" width="720">
+    <img src="/exmples/bulk class mca pancreatic.png" height="480" width="720">
 </p>
 
 
