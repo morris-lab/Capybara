@@ -275,6 +275,12 @@ count.in.cat$perc <- round(count.in.cat$count.in.cat *100/sum(count.in.cat$count
 final.cell.types.adult <- rownames(count.in.cat)[which(count.in.cat$count.in.cat > 100)]
 ```
 
+Below is a composition example for this pancreatic dataset, where we identify 3 major tissues, including stomach, pancreas, and small instestine.
+<p align="center">
+    <img src="/examples/bulk class mca pancreatic.png" height="800" width="400">
+</p>
+
+
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
 
 After tissue-level classification, relevant cell types are selected from cell atlas and built as a single cell reference dataset. As an alternative, users could also use their own single-cell reference dataset to benchmark their samples.
@@ -387,9 +393,6 @@ ggplot(table.freq.melt, aes(x = Capybara.Call, y = variable, size=ifelse(value==
 ```
 
 Below is a dot plot example for this pancreatic dataset to show agreement.
-<p align="center">
-    <img src="/exmples/bulk class mca pancreatic.png" height="480" width="720">
-</p>
 
 
 ## Analysis of Cells with Multiple Identities
