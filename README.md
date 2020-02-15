@@ -67,7 +67,7 @@ baron.meta <- read.csv(full.fpath.meta, header = T, row.names = 1, stringsAsFact
 ```
 
 **3. Application of QP on the sample single-cell data**
-
+Notice: For Windows users, please set unix.par=F and n.cores=1
 ```r
 single.round.QP.analysis(bulk.raw, baron.expr, scale.bulk.sc = "scale", unix.par = TRUE, 
                          force.eq = 1, n.cores = 4, save.to.path = "./", 
