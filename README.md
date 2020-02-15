@@ -67,7 +67,9 @@ baron.meta <- read.csv(full.fpath.meta, header = T, row.names = 1, stringsAsFact
 ```
 
 **3. Application of QP on the sample single-cell data**
+
 Notice: For Windows users, please set unix.par=F and n.cores=1
+
 ```r
 single.round.QP.analysis(bulk.raw, baron.expr, scale.bulk.sc = "scale", unix.par = TRUE, 
                          force.eq = 1, n.cores = 4, save.to.path = "./", 
@@ -274,31 +276,30 @@ final.cell.types.adult <- rownames(count.in.cat)[which(count.in.cat$count.in.cat
 ```
 
 ## Step 2: Generation of a High-Resolution Custom Reference, and Continuous Identity Measurement
+
 After tissue-level classification, relevant cell types are selected from cell atlas and built as a single cell reference dataset. As an alternative, users could also use their own single-cell reference dataset to benchmark their samples.
+
 ### Systematic construction of a high-resolution reference
 
 To alleviate the effect of technical variations, we construct pseudo-bulk references for each reference cell type. By default, 90 cells of each cell type would be used to build the reference. The construct.high.res.reference function returns a list containing expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference.
+
 ``` r
 # Construction of a high-resolution reference
 ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = coldata.df, criteria = "cell.type.alone")
 # Get expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference
 ref.df <- ref.construction(ref.list[[1]], ref.list[[2]], "cell.type")
-
 ```
+
 ### Application of quadratic programming on the self-established reference with the sample
+
 ``` r
-# Read in query single-cell count data
-sc.data<-capy.44h.mtx
 # Measure cell identity in the reference dataset as a background 
-single.round.QP.analysis(ref.df, ref.list[[1]], n.cores = 4, save.to.path = "~/Desktop/Morris Lab/Paper/Manuscript/scClassifier/Pancreatic Baron et al/", save.to.filename = "01_MCA_Based_scClassifier_reference_mix90_normalize_select", unix.par = TRUE)
+single.round.QP.analysis(ref.df, ref.list[[1]], n.cores = 4, save.to.path = "./", save.to.filename = "01_MCA_Based_scClassifier_reference_mix90_normalize_select", unix.par = TRUE)
 
 # Measure cell identity in the query dataset 
-single.round.QP.analysis(ref.df, count.mtx, n.cores = 4, save.to.path = "~/Desktop/Morris Lab/Paper/Manuscript/scClassifier/Pancreatic Baron et al/", save.to.filename = "02_MCA_Based_scClassifier_reference_mix90_test_normalize_select", unix.par = TRUE)
-
-
-
-
+single.round.QP.analysis(ref.df, baron.expr, n.cores = 4, save.to.path = "./", save.to.filename = "02_MCA_Based_scClassifier_reference_mix90_test_normalize_select", unix.par = TRUE)
 ```
+
 ## Step 3: Discrete Cell Type Classification and Multiple Identity Scoring
 
 ### Empirical p-value calculation
@@ -306,34 +307,40 @@ With the constructed single-cell reference, we apply QP to both the sample and r
 ``` r
 # Read in background and testing identity scores
 
-background.mtx <- read.csv("~/Desktop/Morris Lab/Paper/Manuscript/scClassifier/Pancreatic Baron et al/01_MCA_Based_scClassifier_reference_mix90_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
-mtx.test <- read.csv("~/Desktop/Morris Lab/Paper/Manuscript/scClassifier/Pancreatic Baron et al/02_MCA_Based_scClassifier_reference_mix90_test_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+background.mtx <- read.csv("./01_MCA_Based_scClassifier_reference_mix90_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test <- read.csv("./02_MCA_Based_scClassifier_reference_mix90_test_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
 
+col.sub <- ncol(background.mtx) - 2
 
 # Conduct reference randomization to get empirical p-value matrix
-col.sub <- ncol(background.mtx) - 2
 ref.perc.list <- percentage.calc(background.mtx[,c(1:col.sub)], background.mtx[,c(1:col.sub)])
-
 
 # Conduct test randomization to get empirical p-value matrix
 perc.list <- percentage.calc(as.matrix(mtx.test[,c(1:col.sub)]), as.matrix(background.mtx[,c(1:col.sub)]))
-
 ```
+
 ### Binarization with Mann-Whitney
 A randomized test is performed using the background distributions as null to compute the occurrence probability or empirical p-values of each identity score. This test shapes the likelihood identity score occurrence as a continuous distribution, in which the cell type with the lowest likelihood rank is the classified identity. Capybara is also able to identify cells that harbor multiple identities, potentially representing cells transitioning between defined cell identities. To capture multiple cell identities, we use a Mann-Whitney (MW) test to compare the occurrence probabilities of the cell type with the lowest likelihood rank to that of other cell types, following the order from the second-lowest to the highest rank-sum. From this test, we calculate a p-value to determine whether two identities are equally likely to represent the identity of a specific cell. We stop our comparison when we identify the first cell type that is significantly (p-value < 0.05) less likely to represent one of the cell identities. A binarized matrix will be returned with each row representing a query cell and each column representing a possible cell type. 1 means inferred cell type in the matrix. 
 
 ``` r
 # Binarization of inference results
 bin.count <- binarization.mann.whitney(mtx = mtx.test[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.list[[2]], perc.ls = perc.list)
-
-
 ```
+
 ### Classification
-Finally, we return a classification table of each query cell and its inferred cell type. Cells with multiple inferred identities are marked as "Multi_ID". Cells with no significant inferred identity are marked as "unassigned"
+
+Finally, we return a classification table of each query cell and its inferred cell type. Cells with multiple inferred identities are marked as "Multi_ID". Cells with no significant inferred identity are marked as "unassigned".
+
 ``` r
 classification <- binary.to.classification(bin.count[,c(1:col.sub)])
-
 rownames(classification) <- classification$barcode
+```
+
+### Check the Classification Result
+
+We check the classification results by comparing the labels that are shared between the reference and manual annotation of Baron et al., 2016. Further, we visualize the agreement using ggplot2.
+
+```r
 classification$actual <- baron.meta[rownames(classification), "cell.type"]
 
 table.freq <- table(classification$actual, classification$call)
@@ -342,20 +349,25 @@ table.freq.perc <- apply(table.freq, 1, function(x) round(x * 100/sum(x), digits
 rownames(table.freq.perc)[16] <- "beta"
 
 table.freq.sub <- as.data.frame(table.freq.perc[c("B.cell", "beta", "Ductal.cell", "Endothelial.cell",
-                                                "Macrophage", "T.cell", "Dendritic.cell", "Stromal.cell", "Endocrine.cell"), c(1,2,5,8,3,4,6,7,9,10,13)])
+                                                  "Macrophage", "T.cell", "Dendritic.cell", "Stromal.cell", 
+                                                  "Multi_ID", "Endocrine.cell"),
+                                                c("B_cell", "beta", "ductal", "endothelial",
+                                                  "macrophage", "T_cell", "immune_other", "activated_stellate", 
+                                                  "alpha", "delta", "gamma")])
 table.freq.sub$Capybara.Call <- rownames(table.freq.sub)
 table.freq.melt <- melt(table.freq.sub)
 
 table.freq.melt$Capybara.Call <- factor(table.freq.melt$Capybara.Call,
                                         levels = c("B.cell", "beta", "Ductal.cell", "Endothelial.cell",
-                                                   "Macrophage", "T.cell", "Dendritic.cell", "Stromal.cell", "Multi_ID", "Endocrine.cell"),
+                                                   "Macrophage", "T.cell", "Dendritic.cell", "Stromal.cell", 
+                                                   "Multi_ID", "Endocrine.cell"),
                                         ordered = T)
 table.freq.melt$variable <- factor(table.freq.melt$variable,
                                         levels = c("B_cell", "beta", "ductal", "endothelial",
-                                                   "macrophage", "T_cell", "immune_other", "activated_stellate", "alpha", "delta", "gamma"),
+                                                   "macrophage", "T_cell", "immune_other", "activated_stellate", 
+                                                   "alpha", "delta", "gamma"),
                                         ordered = T)
 
-pdf("~/Desktop/Morris Lab/Paper/Manuscript/scClassifier/Pancreatic Baron et al/dot plot.pdf", width = 8, height = 9, paper = "special")
 ggplot(table.freq.melt, aes(x = Capybara.Call, y = variable, size=ifelse(value==0, NA,  value))) +
   geom_point(aes(colour = variable)) +
   scale_size_area(name = "Percentage", max_size=12) +
@@ -372,11 +384,14 @@ ggplot(table.freq.melt, aes(x = Capybara.Call, y = variable, size=ifelse(value==
         panel.grid.minor = element_blank(),
         panel.background = element_blank(), 
         axis.line = element_line(colour = "black", size = 1))
-dev.off()
-
-
-
 ```
+
+Below is a dot plot example for this pancreatic dataset to show agreement.
+<p align="center">
+    <img src="/exmples/.png" height="480" width="720">
+</p>
+
+
 ## Analysis of Cells with Multiple Identities
 ``` r
 
