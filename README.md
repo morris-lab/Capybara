@@ -397,8 +397,3 @@ Below is a dot plot example for this pancreatic dataset to show agreement.
     <img src="/examples/pancreatic dot plot.png" height="450" width="400">
 </p>
 
-
-## Analysis of Cells with Multiple Identities
-``` r
-
-```
