@@ -1,7 +1,5 @@
-# R Package - Capybara 
-<p>
-    <img src="/examples/Monocle_hat_colin.png" height="50" width="50">
-</p>
+# R Package - Capybara <img src="/examples/Monocle_hat_colin.png" height="60" width="50">
+
 
 Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete identities as well as cells with multiple identities. This package have a dependency on R version (R >= 3.5.0). For details regarding the methods, usage and application, please refer to the following papaer - *\<Fill this in\>*.
 
