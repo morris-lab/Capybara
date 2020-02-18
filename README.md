@@ -1,12 +1,12 @@
 # R Package - Capybara <img src="/examples/Monocle_hat_colin.png" height="30" width="25">
 
 
-Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete identities as well as cells with multiple identities. This package have a dependency on R version (R >= 3.5.0). For details regarding the methods, usage and application, please refer to the following papaer - *\<Fill this in\>*.
+Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete identities as well as cells with multiple identities. This package has a dependency on R version (R >= 3.5.0). For details regarding the methods, usage and application, please refer to the following paper: Kong et al., BioRxiv 2020 (https://www.biorxiv.org/content/10.1101/2020.02.17.947390v1)
 
 ## Installation
 ### Dependencies
 
-Most dependency packages can be installed along with Capybara through CRAN. The following dependencies may need to be installed manually through BioConductor (Instructions can also be found here: https://bioconductor.org/).
+Most dependencies can be installed along with Capybara through CRAN. The following dependencies may need to be installed manually through BioConductor (Instructions can also be found here: https://bioconductor.org/).
 
 Install BiocManager
 ```r
@@ -47,7 +47,7 @@ bulk.raw <- readRDS(bulk.raw.path)
 bulk.rpkm <- readRDS(bulk.rpkm.path)
 ```
 
-With the bulk reference, we next load the single-cell reference, such as a cell atlas, and the single-cell sample to be used. The datasets to be used should be in a matrix form with each row representing a gene and each column representing a cell. Here, we use the Mouse Cell Atlas (MCA) as background and single-cell RNA-seq data of mouse pancreatic cells (Baron et al., 2016) as examples for demonstration. MCA can be obtained from https://figshare.com/articles/MCA_DGE_Data/5435866. We included the mouse pancreatic dataset along with the package.
+With the bulk reference, we next load the single-cell reference, such as a cell atlas, and the single-cell sample to be used. The datasets to be used should be in a matrix form with each row representing a gene and each column representing a cell. Here, we use the Mouse Cell Atlas (MCA) as background and single-cell RNA-seq data of mouse pancreatic cells (Baron et al., 2016) as examples for demonstration. MCA can be obtained from https://figshare.com/articles/MCA_DGE_Data/5435866. We included the mouse pancreatic dataset in the package.
 
 **2.Load the single-cell sample dataset and the corresponding meta data**
 
