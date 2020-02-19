@@ -399,4 +399,7 @@ Below is a dot plot example for this pancreatic dataset to show agreement.
 </p>
 
 ## Analysis of Cells with Multiple Identities
+
+A unique aspect of Capybara is the classificaiton of cells with multiple identities, which are key to characterize cell fate transitions in a continuous process. 
+
 *Note: this will be continuously updating*
