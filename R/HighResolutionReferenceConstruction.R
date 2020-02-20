@@ -39,3 +39,33 @@ construct.high.res.reference <- function(ref.mtx, coldata.df, criteria,cell.num.
   ref.df <- ref.construction(ref.sc, ref.meta, "cell.type")
   return(list(ref.sc, ref.meta, ref.df))
 }
+
+#' Reference Construction
+#'
+#' This function constructs reference from single-cell resolution reference data to be used for quadratic programming calculation
+#' @param sc The single-cell resolution dataset
+#' @param sc.aux The auxiliary data frame that annotate the single-cell resolutiond dataset
+#' @param criteria The column name to use for construction of the reference
+#' @export
+#' @examples
+#' ref.construction(single.ref.mtx, single.aux.df, "cell.type")
+ref.construction <- function(sc, sc.aux, criteria) {
+  criteria.col <- sc.aux[, criteria]
+  ref.df <- data.frame()
+  uniq.crit <- unique(criteria.col)
+
+  for (i in 1:length(uniq.crit)) {
+    curr.crit <- uniq.crit[i]
+    sc.bc <- colnames(sc)[which(sc.aux[, criteria] == curr.crit)]
+    curr.sc.sub <- sc[, sc.bc]
+    curr.df <- as.data.frame(rowSums(curr.sc.sub))
+    if (ncol(ref.df) <= 0) {
+      ref.df <- curr.df
+    } else {
+      ref.df <- cbind(ref.df, curr.df)
+    }
+    colnames(ref.df)[i] <- paste0(criteria, "_", curr.crit)
+  }
+  return(ref.df)
+}
+
