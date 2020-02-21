@@ -557,7 +557,7 @@ final.cell.types.fetal <- rownames(count.in.cat)[which(count.in.cat$count.in.cat
 
 Below is the composition for this cardiac reprogramming dataset, where we identify 4 major tissues.
 <p align="center">
-    <img src="/examples/cardiac_bulk.png" height="800" width="400">
+    <img src="/examples/cardiac_bulk_v2.png" height="800" width="400">
 </p>
 
 
