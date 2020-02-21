@@ -484,6 +484,75 @@ sc.data.stone <- RunUMAP(sc.data.stone, dims = 1:18)
 
 ### 3. Classification
 
+#### I. Tissue Classification
+
 Here, we perform the same classification pipeline as described above in the first section, where we obtained four major tissues: neonatal skin, neonatal heart, fetal stomach, and fetal lung. 
+
+**Load the bulk data**
+
+```r
+# File path
+bulk.raw.path <- system.file("extdata", "Bulk Reference Raw.Rds", package = "Capybara")
+bulk.rpkm.path <- system.file("extdata", "Bulk Reference RPKM.Rds", package = "Capybara")
+# Read the matrices
+bulk.raw <- readRDS(bulk.raw.path)
+bulk.rpkm <- readRDS(bulk.rpkm.path)
+```
+
+**Application of Quadratic Programming using Bulk**
+
+```r
+single.round.QP.analysis(bulk.raw, stone.et.al, scale.bulk.sc = "scale", unix.par = TRUE, 
+                         force.eq = 1, n.cores = 4, save.to.path = "./", 
+                         save.to.filename = "stone_bulk_classification_qp")
+```
+
+**Correlation Analysist**
+
+```r
+## Load QP results
+qp.rslt <- read.csv("./stone_bulk_classification_qp_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+
+## Reshape the data
+qp.rslt.sub <- qp.rslt[,c(1:(ncol(qp.rslt) - 2))]
+
+## Background matrix
+background.qp.fpath <- system.file("extdata", "MCA Embryonic Background.Rds", package = "Capybara")
+background.mca <- readRDS(background.qp.fpath)
+background.mtx <- background.mca[[2]]
+
+## Correlation Analysis
+mtx.test <- t(qp.rslt.sub[, colnames(background.mtx)])
+ref.test <- t(background.mtx)
+
+## Pearson's Correlation Calculation
+corr.mtx <- WGCNA::cor(ref.test, mtx.test)
+
+## Setup a correlation cutoff to the 90th quantile of the correlation matrix
+correlation.cutoff <- quantile(corr.mtx, 0.90)
+
+## Binarization based on the correlation
+new.corr.bin <- corr.mtx
+new.corr.bin[which(new.corr.bin >= correlation.cutoff)] <- 1
+new.corr.bin[which(new.corr.bin < correlation.cutoff)] <- 0
+new.corr.bin <- as.data.frame(new.corr.bin)
+```
+
+**Mapping to Tissues in Mouse Cell Atlas (MCA)**
+
+```r
+# Count
+count.in.cat <- c()
+unique.cat <- unique(unlist(lapply(strsplit(rownames(new.corr.bin), "_"), function(x) x[1])))
+for (uc in unique.cat) {
+  curr.subset <- new.corr.bin[which(startsWith(rownames(new.corr.bin), uc)), c(1:30729)]
+  count.in.cat[uc] <- sum(colSums(curr.subset) >= nrow(curr.subset) * 0.80)
+}
+
+count.in.cat <- as.data.frame(count.in.cat)
+count.in.cat$perc <- round(count.in.cat$count.in.cat *100/sum(count.in.cat$count.in.cat), digits = 3)
+
+final.cell.types.fetal <- rownames(count.in.cat)[which(count.in.cat$count.in.cat > 100)]
+```
 
 *Note: this will be continuously updating*
