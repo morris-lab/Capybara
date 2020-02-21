@@ -484,7 +484,7 @@ sc.data.stone <- RunUMAP(sc.data.stone, dims = 1:18)
 
 ### 3. Classification
 
-#### I. Tissue Classification
+### Step 1. Tissue Classification
 
 Here, we perform the same classification pipeline as described above in the first section, where we obtained four major tissues: neonatal skin, neonatal heart, fetal stomach, and fetal lung. 
 
@@ -554,5 +554,11 @@ count.in.cat$perc <- round(count.in.cat$count.in.cat *100/sum(count.in.cat$count
 
 final.cell.types.fetal <- rownames(count.in.cat)[which(count.in.cat$count.in.cat > 100)]
 ```
+
+Below is the composition for this cardiac reprogramming dataset, where we identify 4 major tissues.
+<p align="center">
+    <img src="/examples/cardiac_bulk.png" height="800" width="400">
+</p>
+
 
 *Note: this will be continuously updating*
