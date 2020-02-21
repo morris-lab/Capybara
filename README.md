@@ -400,6 +400,6 @@ Below is a dot plot example for this pancreatic dataset to show agreement.
 
 ## Analysis of Cells with Multiple Identities
 
-A unique aspect of Capybara is the classificaiton of cells with multiple identities, which are key to characterize cell fate transitions in a continuous process. 
+A unique aspect of Capybara is the classificaiton of cells with multiple identities, which are key to characterize cell fate transitions in a continuous process. Cells with multiple identities label transition harbors, while the discrete cell identities that connect these cells mark potential pivotal states/hallmarks during the continuous processes. In Capybara, we further develop a 'transition metric', a transition score, to measure the flux through the mixed cell identities. It is worth noting that the intention of this score is not to measure potential of each identity but to measure the dynamics going through each discrete state. For details, please refer to the paper. Here, we use an example of cardiomyocyte reprogramming to demonstrate the processing of data, cells with multiple identities and calculation of transition scores.
 
 *Note: this will be continuously updating*
