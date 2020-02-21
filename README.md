@@ -400,6 +400,91 @@ Below is a dot plot example for this pancreatic dataset to show agreement.
 
 ## Analysis of Cells with Multiple Identities
 
-A unique aspect of Capybara is the classificaiton of cells with multiple identities, which are key to characterize cell fate transitions in a continuous process. Cells with multiple identities label transition harbors, while the discrete cell identities that connect these cells mark potential pivotal states/hallmarks during the continuous processes. In Capybara, we further develop a 'transition metric', a transition score, to measure the flux through the mixed cell identities. It is worth noting that the intention of this score is not to measure potential of each identity but to measure the dynamics going through each discrete state. For details, please refer to the paper. Here, we use an example of cardiomyocyte reprogramming to demonstrate the processing of data, cells with multiple identities and calculation of transition scores.
+A unique aspect of Capybara is the classificaiton of cells with multiple identities, which are key to characterize cell fate transitions in a continuous process. Cells with multiple identities label transition harbors, while the discrete cell identities that connect these cells mark potential pivotal states/hallmarks during the continuous processes. In Capybara, we further develop a 'transition metric', a transition score, to measure the flux through the mixed cell identities. It is worth noting that the intention of this score is not to measure potential of each identity but to measure the dynamics going through each discrete state. For details, please refer to the paper. Here, we use an example of cardiomyocyte reprogramming (Stone et al., 2019) to demonstrate the preprocessing of data, classification, analysis of cells with multiple identities and calculation of transition scores.
+
+### 1. Download the data
+
+The dataset for the cardiomyocyte reprogramming can be found here under GEO: GSE131328. This dataset contains 6 timepoints of this reprogramming process, Day -1, 1, 2, 3, 7, and 14, where Day -1 marks the day of transduction of three transcription factors and Day 14 cells were sorted using a-MHC reporter (Stone et al., 2019). The data can be downloaded in terminal as well as in R.
+
+```
+wget https://www.ncbi.nlm.nih.gov/geo/download/acc=GSE133452&format=file&file=GSE133452%5Fm1%5F1%5F2%5F3%5F7%5F14P%5Fpaper%2Ecsv%2Egz
+```
+
+or
+
+```r
+download.file("https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE133452&format=file&file=GSE133452%5Fm1%5F1%5F2%5F3%5F7%5F14P%5Fpaper%2Ecsv%2Egz", "./cardiomyocyte_reprogramming_m1_14p.csv.gz")
+
+unzip("./cardiomyocyte_reprogramming_m1_14p.csv.gz", overwrite = FALSE, exdir = ".")
+```
+
+### 2. Preprocessing of the data with Seurat
+
+In this step, we preprocess the data with Seurat to filter the data and obtain a UMAP embedding of the data. For details of Seurat processing, please refer to the instructions or vignettes here - https://satijalab.org/seurat/vignettes.html.
+
+```r
+# Read in the file path for all features and genes
+feature.file.path <- system.file("extdata", "features.tsv", package = "Capybara")
+
+# Load the data
+stone.et.al <- read.csv("./cardiomyocyte_reprogramming_m1_14p.csv", row.names = 1, header = T, stringsAsFactors = F)
+feature.df <- read.table(feature.file.path, header = F, row.names = 1, stringsAsFactors = F)
+
+# Map the gene names fr
+gene.name.subset <- feature.df[intersect(stone.et.al$X, rownames(feature.df)), ]
+stone.et.al.subset <- stone.et.al[which(stone.et.al$X %in% rownames(feature.df)), ]
+stone.et.al.subset$gene.name <- gene.name.subset[stone.et.al.subset$X, "V2"]
+stone.et.al.subset <- stone.et.al.subset[-which(duplicated(stone.et.al.subset$gene.name)), ]
+rnm <- stone.et.al.subset$gene.name
+stone.et.al.final <- stone.et.al.subset[, -c(1,ncol(stone.et.al.subset))]
+rownames(stone.et.al.final) <- rnm
+
+# Create Seurat object
+sc.data.stone <- CreateSeuratObject(counts = stone.et.al.final, project = "cardiac.reprog", min.cells = 3, min.features = 200)
+
+# Calculate mitochondria content
+sc.data.stone[["percent.mt"]] <- PercentageFeatureSet(sc.data.stone, pattern = "mt-")
+
+# Visualize QC metrics as a violin plot and scatter plot
+VlnPlot(sc.data.stone, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+plot1 <- FeatureScatter(sc.data.stone, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(sc.data.stone, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+CombinePlots(plots = list(plot1, plot2))
+
+# Filter the dataset based on number of features
+sc.data.stone <- subset(sc.data.stone, subset = nFeature_RNA > 200 & nFeature_RNA < 5500)
+
+# Log normalize the data
+sc.data.stone <- NormalizeData(sc.data.stone, normalization.method = "LogNormalize", scale.factor = 10000)
+
+# Variable gene identification
+sc.data.stone <- FindVariableFeatures(sc.data.stone, selection.method = "vst", nfeatures = 2000)
+
+# Scale the data
+all.genes <- rownames(sc.data.stone)
+sc.data.stone <- ScaleData(sc.data.stone, features = all.genes)
+
+# PCA
+sc.data.stone <- RunPCA(sc.data.stone, features = VariableFeatures(object = sc.data.stone))
+
+# JackStraw procedure and Elbow plot to select number of PCs
+sc.data.stone <- JackStraw(sc.data.stone, num.replicate = 100)
+sc.data.stone <- ScoreJackStraw(sc.data.stone, dims = 1:20)
+
+JackStrawPlot(sc.data.stone, dims = 1:20)
+ElbowPlot(sc.data.stone)
+
+# Identify neighbors and clusters
+sc.data.stone <- FindNeighbors(sc.data.stone, dims = 1:18)
+sc.data.stone <- FindClusters(sc.data.stone, resolution = 0.8)
+
+# UMAP embedding
+sc.data.stone <- RunUMAP(sc.data.stone, dims = 1:18)
+```
+
+### 3. Classification
+
+Here, we perform the same classification pipeline as described above in the first section, where we obtained four major tissues: neonatal skin, neonatal heart, fetal stomach, and fetal lung. 
 
 *Note: this will be continuously updating*
