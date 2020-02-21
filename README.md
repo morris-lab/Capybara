@@ -290,6 +290,28 @@ After tissue-level classification, relevant cell types are selected from cell at
 
 To alleviate the effect of technical variations, we construct pseudo-bulk references for each reference cell type. By default, 90 cells of each cell type would be used to build the reference. The construct.high.res.reference function returns a list containing expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference.
 
+**Get the counts of the cell types involved in the tissues selected**
+
+```r
+pancreatic.all.meta <- mca.meta[which(mca.meta$cell.bc.tissue %in% final.cell.types.adult), ]
+
+mca.counts.all.involved <- NULL
+tissues.to.read <- unique(pancreatic.all.meta$tissue)
+general.path <- "~/Box/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts/"
+for (i in 1:length(tissues.to.read)) {
+  curr.t <- tissues.to.read[i]
+  curr.path.to.read <- paste0(general.path, curr.t, "/count.csv")
+  curr.count <- read.csv(curr.path.to.read, header = T, row.names = 1, stringsAsFactors = F)
+  if (is.null(mca.counts.all.involved)) {
+    mca.counts.all.involved <- curr.count
+  } else {
+    mca.counts.all.involved <- cbind(mca.counts.all.involved, curr.count)
+  }
+}
+```
+
+**Construction**
+
 ``` r
 # Construction of a high-resolution reference
 ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = coldata.df, criteria = "cell.type.alone")
