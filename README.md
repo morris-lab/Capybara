@@ -308,6 +308,17 @@ for (i in 1:length(tissues.to.read)) {
     mca.counts.all.involved <- cbind(mca.counts.all.involved, curr.count)
   }
 }
+
+## Meta data filtering
+pancreatic.all.meta$cell.type <- gsub("Dendrtic cell", "Dendritic cell", pancreatic.all.meta$cell.type)
+pancreatic.all.meta$cell.type.1 <- gsub("\\([^)]*\\)", "", pancreatic.all.meta$cell.type)
+pancreatic.all.meta$cell.type.alone <- unlist(lapply(strsplit(pancreatic.all.meta$cell.type.1, "_"), function(x) x[1]))
+
+## Filter out cell types with less than 30 cells
+cell.type.alone.freq <- as.data.frame(table(pancreatic.all.meta$cell.type.alone))
+cell.type.over.30 <- cell.type.alone.freq$Var1[which(cell.type.alone.freq$Freq >= 30)]
+pancreatic.sub.meta <- pancreatic.all.meta[which(pancreatic.all.meta$cell.type.alone %in% as.character(cell.type.over.30)),]
+coldata.df <- pancreatic.sub.meta
 ```
 
 **Construction**
