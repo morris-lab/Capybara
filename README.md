@@ -593,7 +593,7 @@ Below is the composition for this cardiac reprogramming dataset, where we identi
     <img src="/examples/cardiac_bulk_v2.png" height="800" width="400">
 </p>
 
-### Step 2. Construction of Reference at High-Resolution
+### Step 2. Construction of Reference at High-Resolution and Continuous Identity Measurements
 
 **Get the counts of cell types in the selected tissues from MCA**
 
@@ -638,5 +638,14 @@ ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = c
 # Get expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference
 ref.df <- ref.construction(ref.list[[1]], ref.list[[2]], "cell.type")
 ```
+
+**Application of Quadratic Programming**
+```r
+single.round.QP.analysis(ref.df, ref.list[[1]], n.cores = 4, save.to.path = "./", save.to.filename = "stone_et_al_reference_MCA")
+single.round.QP.analysis(ref.df, stone.et.al, n.cores = 4, save.to.path = "./", save.to.filename = "stone_et_al_test_MCA")
+```
+
+### Step 3. Discrete Cell Type Classification and Multiple Identity scoring
+
 
 *Note: this will be continuously updating*
