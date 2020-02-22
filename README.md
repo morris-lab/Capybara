@@ -595,7 +595,48 @@ Below is the composition for this cardiac reprogramming dataset, where we identi
 
 ### Step 2. Construction of Reference at High-Resolution
 
+**Get the counts of cell types in the selected tissues from MCA**
 
+```r
+# Background cells
+mca <- read.csv("~/Box/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_CellAssignments.csv",
+                row.names = 1, header = T, stringsAsFactors = F)
+mca.meta <- data.frame(row.names = mca$Cell.name, 
+                       tissue = mca$Tissue,
+                       cell.bc.tissue = unlist(lapply(strsplit(mca$Cell.name, "_"), function(x) x[1])),
+                       cell.type = mca$Annotation,
+                       stringsAsFactors = F)
 
+cardiac.rp.all.meta <- mca.meta[which(mca.meta$cell.bc.tissue %in% final.cell.types.fetal), ]
+
+mca.counts.all.involved <- NULL
+tissues.to.read <- unique(cardiac.rp.all.meta$tissue)
+general.path <- "~/Box/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts/"
+for (i in 1:length(tissues.to.read)) {
+  curr.t <- tissues.to.read[i]
+  curr.path.to.read <- paste0(general.path, curr.t, "/count.csv")
+  curr.count <- read.csv(curr.path.to.read, header = T, row.names = 1, stringsAsFactors = F)
+  if (is.null(mca.counts.all.involved)) {
+    mca.counts.all.involved <- curr.count
+  } else {
+    mca.counts.all.involved <- cbind(mca.counts.all.involved, curr.count)
+  }
+}
+
+## meta data cleaning
+cardiac.rp.all.meta$cell.type.1 <- gsub("\\([^)]*\\)", "", cardiac.rp.all.meta$cell.type)
+cardiac.rp.all.meta$cell.type.alone <- unlist(lapply(strsplit(cardiac.rp.all.meta$cell.type.1, "_"), function(x) x[1]))
+
+cardiac.rp.all.meta$cell.type.1 <- tolower(cardiac.rp.all.meta$cell.type.1)
+coldata.df <- cardiac.rp.all.meta
+```
+
+**Construction**
+```r
+# Construction of a high-resolution reference
+ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = coldata.df, criteria = "cell.type.1")
+# Get expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference
+ref.df <- ref.construction(ref.list[[1]], ref.list[[2]], "cell.type")
+```
 
 *Note: this will be continuously updating*
