@@ -346,7 +346,6 @@ single.round.QP.analysis(ref.df, baron.expr, n.cores = 4, save.to.path = "./", s
 With the constructed single-cell reference, we apply QP to both the sample and reference single-cell datasets to generate continuous measurements of cell identity. The result of this step includes two lists of p-value matrices: one for the reference and the other for the sample. For each cell, each column of the p-value matrix denotes a cell type, while each row describes each round of 50 (default).
 ``` r
 # Read in background and testing identity scores
-
 background.mtx <- read.csv("./01_MCA_Based_scClassifier_reference_mix90_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
 mtx.test <- read.csv("./02_MCA_Based_scClassifier_reference_mix90_test_normalize_select_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
 
@@ -517,11 +516,11 @@ sc.data.stone <- RunUMAP(sc.data.stone, dims = 1:18)
 
 ### 3. Classification
 
-### Step 1. Tissue Classification
+Here, we perform the same classification pipeline as described above in the first section.
 
-Here, we perform the same classification pipeline as described above in the first section, where we obtained four major tissues: neonatal skin, neonatal heart, fetal stomach, and fetal lung. 
+#### Step 1. Tissue Classification 
 
-**Load the bulk data**
+***Load the bulk data***
 
 ```r
 # File path
@@ -532,7 +531,7 @@ bulk.raw <- readRDS(bulk.raw.path)
 bulk.rpkm <- readRDS(bulk.rpkm.path)
 ```
 
-**Application of Quadratic Programming using Bulk**
+***Application of Quadratic Programming using Bulk***
 
 ```r
 single.round.QP.analysis(bulk.raw, stone.et.al, scale.bulk.sc = "scale", unix.par = TRUE, 
@@ -540,7 +539,7 @@ single.round.QP.analysis(bulk.raw, stone.et.al, scale.bulk.sc = "scale", unix.pa
                          save.to.filename = "stone_bulk_classification_qp")
 ```
 
-**Correlation Analysist**
+***Correlation Analysist***
 
 ```r
 ## Load QP results
@@ -571,7 +570,7 @@ new.corr.bin[which(new.corr.bin < correlation.cutoff)] <- 0
 new.corr.bin <- as.data.frame(new.corr.bin)
 ```
 
-**Mapping to Tissues in Mouse Cell Atlas (MCA)**
+***Mapping to Tissues in Mouse Cell Atlas (MCA)***
 
 ```r
 # Count
@@ -593,9 +592,9 @@ Below is the composition for this cardiac reprogramming dataset, where we identi
     <img src="/examples/cardiac_bulk_v2.png" height="800" width="400">
 </p>
 
-### Step 2. Construction of Reference at High-Resolution and Continuous Identity Measurements
+#### Step 2. Construction of Reference at High-Resolution and Continuous Identity Measurements
 
-**Get the counts of cell types in the selected tissues from MCA**
+***Get the counts of cell types in the selected tissues from MCA***
 
 ```r
 # Background cells
@@ -631,7 +630,7 @@ cardiac.rp.all.meta$cell.type.1 <- tolower(cardiac.rp.all.meta$cell.type.1)
 coldata.df <- cardiac.rp.all.meta
 ```
 
-**Construction**
+***Construction***
 ```r
 # Construction of a high-resolution reference
 ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = coldata.df, criteria = "cell.type.1")
@@ -639,13 +638,38 @@ ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = c
 ref.df <- ref.construction(ref.list[[1]], ref.list[[2]], "cell.type")
 ```
 
-**Application of Quadratic Programming**
+***Application of Quadratic Programming***
 ```r
-single.round.QP.analysis(ref.df, ref.list[[1]], n.cores = 4, save.to.path = "./", save.to.filename = "stone_et_al_reference_MCA")
-single.round.QP.analysis(ref.df, stone.et.al, n.cores = 4, save.to.path = "./", save.to.filename = "stone_et_al_test_MCA")
+single.round.QP.analysis(ref.df, ref.list[[1]], n.cores = 4, save.to.path = "./", save.to.filename = "stone_et_al_reference_MCA", unix.par = TRUE)
+single.round.QP.analysis(ref.df, stone.et.al, n.cores = 4, save.to.path = "./", save.to.filename = "stone_et_al_test_MCA", unix.par = TRUE)
 ```
 
-### Step 3. Discrete Cell Type Classification and Multiple Identity scoring
+#### Step 3. Discrete Cell Type Classification and Multiple Identity scoring
 
+***Empirical p-value Calculation***
+```r
+# Read in background and testing identity scores
+background.mtx <- read.csv("./stone_et_al_reference_MCA_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test <- read.csv("./stone_et_al_test_MCA_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+
+col.sub <- ncol(background.mtx) - 2
+
+# Conduct reference randomization to get empirical p-value matrix
+ref.perc.list <- percentage.calc(background.mtx[,c(1:col.sub)], background.mtx[,c(1:col.sub)])
+
+# Conduct test randomization to get empirical p-value matrix
+perc.list <- percentage.calc(as.matrix(mtx.test[,c(1:col.sub)]), as.matrix(background.mtx[,c(1:col.sub)]))
+```
+
+***Binarization and Classificationn***
+```r
+# Binarization of inference results
+bin.count <- binarization.mann.whitney(mtx = mtx.test[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.list[[2]], perc.ls = perc.list)
+# Classificationn
+classification <- binary.to.classification(bin.count[,c(1:col.sub)])
+rownames(classification) <- classification$barcode
+```
+
+### 4. Filter Cells with Multiple Identities based on the QP scores
 
 *Note: this will be continuously updating*
