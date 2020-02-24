@@ -698,7 +698,7 @@ Here, we visualize the transition scores on the UMAP comparing to their time poi
 
 Below is visualization results of cardiac reprogramming process.
 <p align="center">
-    <img src="/examples/cardiac_TS_plot.png" height="365" width="905">
+    <img src="/examples/cardiac_TS_plots.png" height="365" width="905">
 </p>
 
 
