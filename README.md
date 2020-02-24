@@ -676,9 +676,13 @@ Different interpretations can be taken on the cells with multiple identities. He
 
 ```r
 multi.classification.list <- multi.id.curate.qp(binary.counts = bin.count, classification = classification, qp.matrix = mtx.test)
+# Reassign variables
 actual.multi <- multi.classification.list[[1]]
 new.classification <- multi.classification.list[[2]]
 ```
+
+### 5. Calculate Transition Scores
+
 
 
 
