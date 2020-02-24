@@ -672,7 +672,13 @@ rownames(classification) <- classification$barcode
 
 ### 4. Filter Cells with Multiple Identities based on the QP scores
 
-Different interpretations can be taken on the cells with multiple identities. Here, we interpret these cells as in transition. However, some cells with multiple identities may be incorrectly labelled, which is represented by close to zero (we defined as <10E-3) QP score for one of the labelled identities. Hence, we first filter the cells with multiple identities such that each cell receives relative significant QP scores for each shared identity. 
+Different interpretations can be taken on the cells with multiple identities. Here, we interpret these cells as in transition. However, some cells with multiple identities may be incorrectly labelled, which is represented by close to zero (we defined as <10E-3, this threshold can be modified as an input parameter of the function) QP score for one of the labelled identities. Hence, we first filter the cells with multiple identities such that each cell receives relative significant QP scores for each shared identity. This function will return a list where \[\[1\]\] represents a data frame of actual multiple identity cells and \[\[2\]\] represents an updated classification data frame.
+
+```r
+multi.classification.list <- multi.id.curate.qp(binary.counts = bin.count, classification = classification, qp.matrix = mtx.test)
+actual.multi <- multi.classification.list[[1]]
+new.classification <- multi.classification.list[[2]]
+```
 
 
 
