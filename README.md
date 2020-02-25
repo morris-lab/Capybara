@@ -685,7 +685,7 @@ new.classification <- multi.classification.list[[2]]
 
 ***Calculation***
 
-Cells with multiple identities label critical transition states in different trajectories. Building on this concept, we also measure the strength and frequency of connections to the "hub" identities, i.e. discrete identities where the multiple identity cells are connected to. This provides a metric that we define as a "transition score". The calculation of transition scores only involves cells with multiple identities. In brief, we interpret QP scores as probabilities of the cell transitioning to each discrete cell identity, which further we use as a measure of transition probability. Using this measurement of transition probability, we calculate the amount of information that the terminal cell state has received based on information theory. For detailed methods, please refer to the paper. Here, we demonstrate the calculation of transition scores for discrete cell identity states that are involved in cells with multiple identities in this cardiomyocyte reprogramming process. This function takes an input of the multiple identity data frame calculated from above and outputs a data frame with each cell state to their scores.
+Cells with multiple identities label critical transition states in different trajectories. Building on this concept, we also measure the strength and frequency of connections to the "hub" identities, i.e. discrete identities where the multiple identity cells are connected to. This provides a metric that we define as a "transition score". The calculation of transition scores only involves cells with multiple identities. In brief, we interpret QP scores as probabilities of the cell transitioning to each discrete cell identity, which  we further use as a measure of transition probability. Using this measurement of transition probability, we calculate the amount of information that the terminal cell state has received based on information theory. For detailed methods, please refer to the paper. Here, we demonstrate the calculation of transition scores for discrete cell identity states that are involved in cells with multiple identities in this cardiomyocyte reprogramming process. This function takes an input of the multiple identity data frame calculated from above and outputs a data frame with each cell state to their scores.
 
 
 ```r
@@ -694,7 +694,7 @@ score.df <- transition.score(actual.multi)
 
 ***Visualization***
 
-Here, we visualize the transition scores on the UMAP comparing to their time points of collection. Additionally, we compared the scores between time points using box plots. Other visualization methods, such as violin plot, can also be adapted.
+Here, we visualize the transition scores on the UMAP, comparing to their time points of collection. Additionally, we compared the scores between time points using box plots. Other visualization methods, such as violin plots, can also be adapted.
 
 Below is visualization results of cardiac reprogramming process.
 <p align="center">
