@@ -56,7 +56,7 @@ normalize.dt <- function(dt.st) {
 calc.scale.ratio <- function(bulk, sc) {
   # Calculate column sums
   csums.bulk <- colSums(bulk)
-  csums.sc <- colSums(sc)
+  csums.sc <- Matrix::colSums(sc)
   # Calculate averages of the sums
   cavg.bulk <- mean(csums.bulk)
   cavg.sc <- mean(csums.sc)
@@ -75,8 +75,8 @@ calc.scale.ratio <- function(bulk, sc) {
 #' gene.intersect.sub(reference.dt, single.cell.mtx)
 gene.intersect.sub <- function(bulk, sc) {
   # Find genes with all zero-expression within sc/bulk
-  rsums.bulk <- rowSums(bulk)
-  rsums.sc <- rowSums(sc)
+  rsums.bulk <- Matrix::rowSums(bulk)
+  rsums.sc <- Matrix::rowSums(sc)
   # Identify blank genes
   bulk.blank.genes <- which(rsums.bulk == 0)
   sc.blank.genes <- which(rsums.sc == 0)
