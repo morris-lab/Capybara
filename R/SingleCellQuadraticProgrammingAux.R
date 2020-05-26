@@ -35,7 +35,7 @@ top.genes <- function(input.dir, output.dir, top.number.count = 500) {
 #' normalize.dt(single.cell.mtx)
 normalize.dt <- function(dt.st) {
   # Calculate column sums
-  csums <- colSums(dt.st)
+  csums <- Matrix::colSums(dt.st)
   # Calculate averages of the sums
   cavg <- mean(csums)
   # Calculate normalized bulk
