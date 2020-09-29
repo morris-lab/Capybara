@@ -12,9 +12,9 @@ Install BiocManager
 ```r
 install.packages("BiocManager")
 ```
-Install dependency packages
+Install Bioconductor dependency packages
 ```r
-BiocManager::install("limma")
+BiocManager::install("limma","impute", "AnnotationDbi","GO.db", "preprocessCore")
 ```
 
 ### Install the package
