@@ -18,15 +18,17 @@ construct.high.res.reference <- function(ref.mtx, coldata.df, criteria,cell.num.
   for (j in 1:nrow(ct.freq)) {
     curr.ct.at.test <- as.character(ct.freq[j,1])
     curr.cell.involve <- rownames(coldata.df)[which(coldata.df[,criteria] == curr.ct.at.test)]
+    curr.cell.index <- which(colnames(mca.counts.all.involved.sub) %in% curr.cell.involve)
+    curr.mtx.sub <- as.matrix(mca.counts.all.involved.sub[, curr.cell.index])
     if (ct.freq$Freq[j] >= cell.num.for.ref) {
-      sample.ref.cell <- c(get.most.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2),
-                           get.least.connected(log1p(normalize.dt(mca.counts.all.involved.sub[,curr.cell.involve])), cell.num.for.ref/2))
+      sample.ref.cell <- c(get.most.connected(log1p(normalize.dt(curr.mtx.sub)), cell.num.for.ref/2),
+                           get.least.connected(log1p(normalize.dt(curr.mtx.sub)), cell.num.for.ref/2))
     } else {
       sample.ref.cell <- sample(curr.cell.involve, size = cell.num.for.ref, replace = T)
     }
     new.bc <- paste0("Cell_", seq(((j-1) * cell.num.for.ref + 1), j * cell.num.for.ref))
     curr.meta <- data.frame(row.names = new.bc, cell.type = curr.ct.at.test, cell.bc = sample.ref.cell, stringsAsFactors = F)
-    curr.sc <- mca.counts.all.involved.sub[, sample.ref.cell]
+    curr.sc <- curr.mtx.sub[, sample.ref.cell]
     colnames(curr.sc) <- new.bc
     if (ncol(ref.sc) <= 0) {
       ref.meta <- curr.meta
