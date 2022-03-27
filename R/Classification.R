@@ -16,11 +16,16 @@ binary.to.classification <- function(bin.count.rslt) {
       curr.df <- data.frame(barcode = curr.cell.bc, call = "Multi_ID", stringsAsFactors = F)
     } else {
       if (bin.count.rsums[i] == 0) {
-        curr.df <- data.frame(barcode = curr.cell.bc, call = "Unassigned", stringsAsFactors = F)
-      } else {
+        curr.df <- data.frame(barcode = curr.cell.bc, call = "Unknown", stringsAsFactors = F)
+      } 
+      else {
+        if (bin.count.rsums[i] < 0) {
+          curr.df <- data.frame(barcode = curr.cell.bc, call = "Unknown.Progenitor", stringsAsFactors = F)
+        } else {
         idx <- which(bin.count.rslt[i,] == 1)
         identity <- unlist(lapply(strsplit(colnames(bin.count.rslt), "frxn_cell.type_"), function(x) x[length(x)]))[idx]
         curr.df <- data.frame(barcode = curr.cell.bc, call = identity[length(identity)], stringsAsFactors = F)
+        }
       }
     }
     if (nrow(class.rslt) <= 0) {
