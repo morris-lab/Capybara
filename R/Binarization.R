@@ -7,23 +7,22 @@
 #' @param perc.ls Emprical p-values for query cells
 #' @param bulk If the reference data type is bulk RNA-seq. The default is bulk = FALSE
 #' @param map.df bulk mapping. The default is bulk = FALSE
+#' @param init.class initial classification. The default is init.class = NULL
 #' @keywords binarization, identity calling
 #' @note
 #' @export
 #' @examples
 #'
-binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk = FALSE, map.df = NULL) {
+binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk = FALSE, map.df = NULL, init.class = NULL) {
   p_vals <- matrix(nrow = nrow(mtx), ncol = (ncol(mtx) - 1))
   type_rank_in_order_mtx <- c()
   which_type <- c()
-
+  
   all.indx <- seq(1,length(perc.ls))
-  # ref.indx <- which(unlist(lapply(perc.ls, function(x) x[[1]])) %in% rownames(ref.meta))
-  # test.indx <- setdiff(all.indx, ref.indx)
-
+  
   benchmark <- list()
   benchmark.final <- c()
-
+  
   for (i in 1:length(ref.perc.ls)) {
     curr.cell <- names(ref.perc.ls[[i]])
     perc_mtx <- as.data.frame(ref.perc.ls[[i]][[1]])
@@ -53,7 +52,7 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
       }
     }
   }
-
+  
   for (i in 1:length(benchmark)) {
     curr.name <- names(benchmark)[i]
     curr.benchmark <- benchmark[[i]]
@@ -63,9 +62,9 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
     if (length(higher.end.outliers) > 0) benchmark[[i]] <- curr.benchmark[which(curr.benchmark <= min(higher.end.outliers))]
     benchmark.final[curr.name] <- max(benchmark[[i]][which(benchmark[[i]] < 1)])
   }
-  # benchmark.final <- rep(quantile(benchmark.final, 0.9), length(benchmark.final))
-  # names(benchmark.final) <- names(benchmark)
-
+  
+  if (!("Unknown" %in% names(table(init.class$init.class)))) {init.class = NULL}
+  
   for (i in all.indx) {
     perc_mtx<-as.matrix((perc.ls[[i]][[1]]))
     vec<-as.vector(perc_mtx)
@@ -73,31 +72,57 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
     type_rank<-as.matrix(t(colSums(matrix(rank, nrow=50))))
     colnames(type_rank)<-colnames(perc_mtx)
     type_rank_in_order<-colnames(type_rank)[order(type_rank,decreasing = F)]
-    # type_rank_in_order[which(endsWith(type_rank_in_order, "."))] <- substr(type_rank_in_order[which(endsWith(type_rank_in_order, "."))], 1, (nchar(type_rank_in_order[which(endsWith(type_rank_in_order, "."))]) - 1))
     type_rank_in_order_mtx<-rbind(type_rank_in_order_mtx,type_rank_in_order)
-
-    if(mean(perc_mtx[,type_rank_in_order[1]]) >= (benchmark.final[type_rank_in_order[1]] + 0.01)) {
-      which_type <- c(which_type, 0)
-    } else {
-      for (j in 1:(length(colnames(type_rank))-1)) {
-
-        a<-type_rank_in_order[1]
-        b<-type_rank_in_order[j+1]
-
-        test<-wilcox.test(x=perc_mtx[,a],y=perc_mtx[,b],alternative = "less")
-        p_vals[i,j]<-test$p.value
-        if(test$p.value<.05){
-          which_type<-c(which_type,j)
-          break
+    
+    if (!is.null(init.class)) {
+      if(init.class[names(perc.ls[[i]]), "init.class"] == "Unknown") {
+        which_type <- c(which_type, 0)
+      } else {
+        if (init.class[names(perc.ls[[i]]), "init.class"] == "Unknown.Progenitor") {
+          which_type <- c(which_type, -1)
         } else {
-          if (j == (ncol(type_rank_in_order_mtx) - 1)) {
-            which_type <- c(which_type, j+1)
+          for (j in 1:(length(colnames(type_rank))-1)) {
+            
+            a<-type_rank_in_order[1]
+            b<-type_rank_in_order[j+1]
+            
+            test<-wilcox.test(x=perc_mtx[,a],y=perc_mtx[,b],alternative = "less")
+            p_vals[i,j]<-test$p.value
+            if(test$p.value<.05 & (init.class[names(perc.ls[[i]]), "init.class"] == "Single-ID")){
+              which_type<-c(which_type,j)
+              break
+            } else {
+              if (j == (ncol(type_rank_in_order_mtx) - 1) | (init.class[names(perc.ls[[i]]), "init.class"] == "Multi-ID")) {
+                which_type <- c(which_type, j+1)
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if(mean(perc_mtx[,type_rank_in_order[1]]) >= (benchmark.final[type_rank_in_order[1]] + 0.01)) {
+        which_type <- c(which_type, 0)
+      } else {
+        for (j in 1:(length(colnames(type_rank))-1)) {
+          
+          a<-type_rank_in_order[1]
+          b<-type_rank_in_order[j+1]
+          
+          test<-wilcox.test(x=perc_mtx[,a],y=perc_mtx[,b],alternative = "less")
+          p_vals[i,j]<-test$p.value
+          if(test$p.value<.05){
+            which_type<-c(which_type,j)
+            break
+          } else {
+            if (j == (ncol(type_rank_in_order_mtx) - 1)) {
+              which_type <- c(which_type, j+1)
+            }
           }
         }
       }
     }
   }
-
+  
   type_rank_in_order_mtx <- as.matrix(type_rank_in_order_mtx)
   binary.mtx<-matrix(0,nrow = nrow(mtx), ncol = ncol(mtx))
   colnames(binary.mtx)<-colnames(mtx)
@@ -109,9 +134,13 @@ binarization.mann.whitney <- function(mtx, ref.perc.ls, ref.meta, perc.ls, bulk 
         binary.mtx[i,type_rank_in_order_mtx[i,j]] <- 1
       }
     }
+    if (which_type[i] < 0) {
+      for (j in 1:which_type[i]) {
+        binary.mtx[i,type_rank_in_order_mtx[i,j]] <- -1
+      }
+    }
   }
   rownames(binary.mtx)<-cellnames
-
+  
   return(binary.mtx)
 }
-
