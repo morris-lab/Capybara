@@ -1,7 +1,7 @@
 # R Package - Capybara <img src="/examples/Monocle_hat_colin.png" height="30" width="25">
 
 
-Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete identities as well as cells with multiple identities. This package has a dependency on R version (R >= 3.5.0). For details regarding the methods, usage and application, please refer to the following paper: Kong et al., BioRxiv 2020 (https://www.biorxiv.org/content/10.1101/2020.02.17.947390v1)
+Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete identities as well as cells with multiple identities. This package has a dependency on R version (R >= 3.5.0). In addition to the following tutorial, we provide the notebooks for production of figures in the examples/Reproducibility folder. There could exist some variations due to difference in threshold selections. For details regarding the methods, usage and application, please refer to the following paper: Kong et al., Cell Stem Cell, 2022 (https://www.sciencedirect.com/science/article/pii/S1934590922000996?dgcid=coauthor)
 
 ## Installation
 ### Dependencies
@@ -327,7 +327,9 @@ coldata.df <- pancreatic.sub.meta
 # Construction of a high-resolution reference
 ref.list <- construct.high.res.reference(mca.counts.all.involved, coldata.df = coldata.df, criteria = "cell.type.alone")
 # Get expression matrix and meta data of cells used to build the reference, as well as the constructed pseudo-bulk reference
-ref.df <- ref.construction(ref.list[[1]], ref.list[[2]], "cell.type")
+ref.df <- ref.list[[3]]
+ref.meta <- ref.list[[2]]
+ref.sc <- ref.list[[1]]
 ```
 
 ### Application of quadratic programming on the self-established reference with the sample
