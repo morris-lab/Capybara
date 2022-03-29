@@ -4,10 +4,21 @@
 \alias{single.round.QP.analysis}
 \title{Single Round of Quadratic Programming}
 \usage{
-single.round.QP.analysis(ref, sc.data, scale.bulk.sc = "scale",
-  unix.par = FALSE, windows.par = FALSE, force.eq = 0, n.cores = 1,
-  save.to.path, save.to.filename, bulk.norm = T, norm.sc = T,
-  log.bulk = T, log.sc = T)
+single.round.QP.analysis(
+  ref,
+  sc.data,
+  scale.bulk.sc = "scale",
+  unix.par = FALSE,
+  windows.par = FALSE,
+  force.eq = 0,
+  n.cores = 1,
+  save.to.path,
+  save.to.filename,
+  bulk.norm = T,
+  norm.sc = T,
+  log.bulk = T,
+  log.sc = T
+)
 }
 \arguments{
 \item{ref}{The reference transcriptome taht contains the transcriptome of each potential cell type}

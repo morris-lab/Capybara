@@ -12,6 +12,9 @@ binary.to.classification(bin.count.rslt)
 \description{
 This function genrate classification table from the binarized result matrix
 }
+\note{
+
+}
 \examples{
 
 }

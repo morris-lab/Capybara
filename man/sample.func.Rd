@@ -16,6 +16,9 @@ sample.func(dens.x, curr.val, prob, n = 1000)
 \description{
 This function resamples from a sample dataset and returns an empirical p-value of identity score
 }
+\note{
+
+}
 \examples{
 
 }

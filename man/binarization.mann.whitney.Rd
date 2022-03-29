@@ -4,8 +4,15 @@
 \alias{binarization.mann.whitney}
 \title{Binarization and Identity Calling from Identity Score}
 \usage{
-binarization.mann.whitney(mtx, ref.perc.ls, ref.meta, perc.ls,
-  bulk = FALSE, map.df = NULL)
+binarization.mann.whitney(
+  mtx,
+  ref.perc.ls,
+  ref.meta,
+  perc.ls,
+  bulk = FALSE,
+  map.df = NULL,
+  init.class = NULL
+)
 }
 \arguments{
 \item{mtx}{The matrix of identity scores of query cells. The row number is the total number of query cells and the column number is the number of total number of possible cell types}
@@ -19,9 +26,14 @@ binarization.mann.whitney(mtx, ref.perc.ls, ref.meta, perc.ls,
 \item{bulk}{If the reference data type is bulk RNA-seq. The default is bulk = FALSE}
 
 \item{map.df}{bulk mapping. The default is bulk = FALSE}
+
+\item{init.class}{initial classification. The default is init.class = NULL}
 }
 \description{
 This function calls single identity or multiple identities of query cells from empirical p-values. Inferred cell types are marked by 1 in a binarized matrix.
+}
+\note{
+
 }
 \examples{
 

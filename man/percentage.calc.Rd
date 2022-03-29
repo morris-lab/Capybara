@@ -14,6 +14,9 @@ percentage.calc(mtx, bkgd.mtx)
 \description{
 This function returns a list of emprical p-value matrices. Every matrix in the list contains emprical p-values of all possilbe celltypes for a single query cells under test.times resampled backgrounds.
 }
+\note{
+
+}
 \examples{
 
 }

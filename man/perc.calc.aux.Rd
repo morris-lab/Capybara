@@ -4,8 +4,15 @@
 \alias{perc.calc.aux}
 \title{Emprical p-values for a query cell}
 \usage{
-perc.calc.aux(l, cell.names, mtx.ct.num, background.mtx, mtx, cnms,
-  test.times = 50)
+perc.calc.aux(
+  l,
+  cell.names,
+  mtx.ct.num,
+  background.mtx,
+  mtx,
+  cnms,
+  test.times = 50
+)
 }
 \arguments{
 \item{l}{The index of the sample cell of query}
@@ -24,6 +31,9 @@ perc.calc.aux(l, cell.names, mtx.ct.num, background.mtx, mtx, cnms,
 }
 \description{
 This function returns emprical p-values of all possilbe celltypes for a query cells under test.times resampled backgrounds.
+}
+\note{
+
 }
 \examples{
 

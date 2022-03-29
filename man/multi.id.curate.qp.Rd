@@ -4,8 +4,12 @@
 \alias{multi.id.curate.qp}
 \title{Multi-ID Score-Based Filter}
 \usage{
-multi.id.curate.qp(binary.counts, classification, qp.matrix,
-  qp.threshold = 10^-3)
+multi.id.curate.qp(
+  binary.counts,
+  classification,
+  qp.matrix,
+  qp.threshold = 10^-3
+)
 }
 \arguments{
 \item{binary.counts}{The binary count matrix, which is the output from binarization with Mann Whitney.}

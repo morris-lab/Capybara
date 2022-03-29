@@ -4,8 +4,12 @@
 \alias{construct.high.res.reference}
 \title{Systematic construction of a high-resolution reference}
 \usage{
-construct.high.res.reference(ref.mtx, coldata.df, criteria,
-  cell.num.for.ref = 90)
+construct.high.res.reference(
+  ref.mtx,
+  coldata.df,
+  criteria,
+  cell.num.for.ref = 90
+)
 }
 \arguments{
 \item{ref.mtx}{The single-cell reference dataset}
@@ -16,6 +20,9 @@ construct.high.res.reference(ref.mtx, coldata.df, criteria,
 }
 \description{
 Create a pseudo-bulk reference by sampling 90-cells from each cell type to maintain cellular resolution while increasing transcriptional resolution
+}
+\note{
+
 }
 \examples{
 

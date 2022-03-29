@@ -4,9 +4,14 @@
 \alias{sc.quad.prog.run}
 \title{Single-Cell Quadratic Programming Calculation}
 \usage{
-sc.quad.prog.run(bulk.transcriptome, single.cell.transcriptome,
-  force.eq = 0, unix.parallel = FALSE, windows.parallel = FALSE,
-  parallel.cores = 4)
+sc.quad.prog.run(
+  bulk.transcriptome,
+  single.cell.transcriptome,
+  force.eq = 0,
+  unix.parallel = FALSE,
+  windows.parallel = FALSE,
+  parallel.cores = 4
+)
 }
 \arguments{
 \item{bulk.transcriptome}{The reference transcriptome taht contains the transcriptome of each potential cell type}
