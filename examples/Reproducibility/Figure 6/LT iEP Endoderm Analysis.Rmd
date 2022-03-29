@@ -1,0 +1,285 @@
+---
+title: "LT iEP Analysis with Developmental Atlas or Regenerative Liver Epithelium"
+output: html_notebook
+---
+
+### Brief Description
+In this notebook, we document the analysis of iEP dataset using an endoderm atlas or regenerative liver atlas. We use this dataset to showcase application of Capybara on a relatively uncharacterized reprogramming cell type and demonstrate the outcome of an inappropriate reference choice. We demonstrate this with the LT iEP dataset as the size of this dataset is relatively smaller compared to the timecourse dataset. In this notebook file, we start with previous outcomes from Capybara. It is worth noting that the initial classification may not produce accurate percentages of hybrids vs discrete cells considering potential overlap between these two distributions. We mainly use the initial classification for the separation of unknowns. The more detailed breakdown of hybrid and discrete cells relies on the downstream statistical framework.
+
+For details of iEPs, please refer to Sekiya and Suzuki 2011 (https://www.nature.com/articles/nature10263), Morris et al 2014 (https://www.cell.com/cell/fulltext/S0092-8674(14)00935-0?_returnURL=https%3A%2F%2Flinkinghub.elsevier.com%2Fretrieve%2Fpii%2FS0092867414009350%3Fshowall%3Dtrue), and Biddy et al 2018 (https://www.nature.com/articles/s41586-018-0744-4). For details of Capybara, please refer to the Capybara paper here (https://www.sciencedirect.com/science/article/pii/S1934590922000996?dgcid=coauthor).
+
+### Load packages
+```{r}
+library(Capybara)
+library(ggplot2)
+library(Seurat)
+```
+
+### Capybara
+Here we perform Capybara classification on the LT iEP 2D culture dataset with two different references, 1) endoderm developmental reference and 2) developmental atlas + regenerative liver epithelium.
+
+1) We load the single-cell datasets
+```{r}
+sc.data <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Raw LT iEP Data/d2_raw.Rds")
+sc.data.2 <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Raw LT iEP Data/d16_raw.Rds")
+```
+
+2) We load the two different references
+I) Endoderm Developmental Reference
+```{r}
+merged.ref <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Reference Data/endoderm_dev_merged.Rds")
+ref.sc <- merged.ref[[1]]
+ref.df <- merged.ref[[3]]
+ref.meta <- merged.ref[[2]]
+```
+
+II) Developmental atlas + Regenerative Liver epithelium
+```{r}
+reference.2 <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Reference Data/endoderm_dev_merged_w_hep.Rds")
+ref.sc.whole <- reference.2[[1]]
+ref.meta.whole <- reference.2[[2]]
+ref.df.whole <- reference.2[[3]]
+```
+
+#### Quadratic Programming
+3) We run quadratic programming on this dataset (Endoderm Atlas). As this dataset could take a while to run, we have included previous outcomes in the reproducibility folder and will start from there. If interested, please run the next few lines.
+```{r, eval=FALSE}
+test.sc <- as.matrix(sc.data)
+
+single.round.QP.analysis(ref.df, ref.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "011_2d_rep1_LT_iEP_endo_dev_meta_reference_qp")
+
+single.round.QP.analysis(ref.df, test.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "011_2d_rep1_LT_iEP_endo_dev_meta_sample_qp")
+
+test.sc <- as.matrix(sc.data.2)
+
+single.round.QP.analysis(ref.df, test.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "012_2d_rep2_LT_iEP_endo_dev_meta_sample_qp")
+```
+
+4) We run quadratic programming on this dataset (Endoderm Atlas + Regenerative Liver Epithelium). As this dataset could take a while to run, we have included previous outcomes in the reproducibility folder and will start from there. If interested, please run the next few lines.
+```{r, eval=FALSE}
+test.sc <- as.matrix(sc.data)
+
+single.round.QP.analysis(ref.df.whole, ref.sc.whole, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "021_2d_rep1_LT_iEP_endo_dev_w_hep_meta_reference_qp")
+
+single.round.QP.analysis(ref.df.whole, test.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "021_2d_rep1_LT_iEP_endo_dev_w_hep_meta_sample_qp")
+
+test.sc <- as.matrix(sc.data.2)
+
+single.round.QP.analysis(ref.df.whole, test.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "022_2d_rep2_LT_iEP_endo_dev_w_hep_meta_sample_qp")
+```
+
+#### Initial classifications (with Endoderm Atlas)
+1) Here we load the QP scores.
+```{r}
+background.mtx <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/011_2d_rep1_LT_iEP_endo_dev_meta_reference_qp_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/011_2d_rep1_LT_iEP_endo_dev_meta_sample_qp_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test.r2 <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/012_2d_rep2_LT_iEP_endo_dev_meta_sample_qp_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+
+mtx.test.full <- rbind(mtx.test, mtx.test.r2)
+```
+
+2) Initial classification with deviance (with Endoderm Atlas).
+```{r}
+col.sub <- ncol(background.mtx) - 2
+
+ideal.deviance <- background.mtx[,c(1:col.sub)] - 1/col.sub
+ideal.deviance.all <- rowSums(abs(ideal.deviance))
+ideal.deviance.all.mean <- mean(ideal.deviance.all)
+ideal.deviance.sd <- sd(ideal.deviance.all)
+
+library(MASS)
+fit <- fitdistr(ideal.deviance.all, densfun = "normal")
+
+force.test.qp.deviance <- abs(mtx.test.full[,c(1:col.sub)] - 1/col.sub)
+
+force.test.qp.deviance$total.deviance <- rowSums(force.test.qp.deviance)
+mtx.test.full$deviance <- force.test.qp.deviance[rownames(mtx.test.full), "total.deviance"]
+
+guessed.multi.id.deviance.mean <- ideal.deviance.all.mean - ideal.deviance.sd
+guessed.unknown.deviance.mean <- guessed.multi.id.deviance.mean - ideal.deviance.sd
+
+mtx.test.full$deviance.p <- pnorm(mtx.test.full$deviance, mean = ideal.deviance.all.mean, sd = ideal.deviance.sd, lower.tail = T)
+mtx.test.full$deviance.p.multi <- pnorm(mtx.test.full$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd, lower.tail = T)
+mtx.test.full$deviance.p.unknown <- pnorm(mtx.test.full$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd, lower.tail = T)
+```
+
+Here we look at the plot of p-values for hybrid, single, and unknowns for initial classification thresholds
+```{r}
+plot(mtx.test.full$deviance.p.multi, mtx.test.full$deviance.p)
+plot(mtx.test.full$deviance.p.unknown, mtx.test.full$deviance.p.multi)
+```
+We put the initial classification together for binarization next step.
+```{r}
+init.class <- data.frame(cell.bc = rownames(force.test.qp.deviance), init.class = "Single-ID", stringsAsFactors = F)
+rownames(init.class) <- init.class$cell.bc
+init.class[rownames(mtx.test.full[which(mtx.test.full$deviance.p >= 0.05 & mtx.test.full$deviance.p.multi >= 0.95), ]), "init.class"] <- "Single-ID"
+init.class[rownames(mtx.test.full[which(mtx.test.full$deviance.p.multi >= 0 & mtx.test.full$deviance.p.unknown > 0.95 & mtx.test.full$deviance.p < 0.05), ]), "init.class"] <- "Multi_ID"
+init.class[rownames(mtx.test.full[which(mtx.test.full$deviance.p.multi < 0.05 & mtx.test.full$deviance.p.unknown >= 0), ]), "init.class"] <- "Unknown"
+```
+
+We quickly evaluate the outcome of the initial classification.
+```{r, fig.width=4, fig.height=8}
+freq.table <- as.data.frame(table(init.class$init.class) * 100/sum(table(init.class$init.class)))
+freq.table <- freq.table[order(freq.table$Freq, decreasing = T), ]
+freq.table$Var1 <- factor(as.character(freq.table$Var1),
+                          levels = as.character(freq.table$Var1),
+                          ordered = T)
+
+ggplot(freq.table, aes(x = "Hematopoiesis", y = Freq, fill = Var1)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_brewer(palette = "Paired") +
+  theme(legend.position = "right",
+        axis.text.x = element_text(face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+We observe 99.7% of unknown cells in this population, indicating inappropriate reference usage. Based on this, we did not proceed to the more detailed classification.
+
+#### Initial classifications (with Endoderm Atlas + Regenerative Liver Epithelium)
+1) Here we load the QP scores.
+```{r}
+background.mtx <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/021_2d_rep1_LT_iEP_endo_dev_w_hep_meta_reference_qp_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/021_2d_rep1_LT_iEP_endo_dev_w_hep_meta_sample_qp_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test.r2 <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/022_2d_rep2_LT_iEP_endo_dev_w_hep_meta_sample_qp_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+
+mtx.test.full <- rbind(mtx.test, mtx.test.r2)
+```
+
+2) Initial classification with deviance (with Endoderm Atlas + Regenerative Liver Epithelium).
+```{r}
+col.sub <- ncol(background.mtx) - 2
+
+ideal.deviance <- background.mtx[,c(1:col.sub)] - 1/col.sub
+ideal.deviance.all <- rowSums(abs(ideal.deviance))
+ideal.deviance.all.mean <- mean(ideal.deviance.all)
+ideal.deviance.sd <- sd(ideal.deviance.all)
+
+library(MASS)
+fit <- fitdistr(ideal.deviance.all, densfun = "normal")
+
+force.test.qp.deviance <- abs(mtx.test.full[,c(1:col.sub)] - 1/col.sub)
+
+force.test.qp.deviance$total.deviance <- rowSums(force.test.qp.deviance)
+mtx.test.full$deviance <- force.test.qp.deviance[rownames(mtx.test.full), "total.deviance"]
+
+guessed.multi.id.deviance.mean <- ideal.deviance.all.mean - ideal.deviance.sd
+guessed.unknown.deviance.mean <- guessed.multi.id.deviance.mean - ideal.deviance.sd
+
+mtx.test.full$deviance.p <- pnorm(mtx.test.full$deviance, mean = ideal.deviance.all.mean, sd = ideal.deviance.sd, lower.tail = T)
+mtx.test.full$deviance.p.multi <- pnorm(mtx.test.full$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd, lower.tail = T)
+mtx.test.full$deviance.p.unknown <- pnorm(mtx.test.full$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd, lower.tail = T)
+```
+
+Here we look at the plot of p-values for hybrid, single, and unknowns for initial classification thresholds
+```{r}
+plot(mtx.test.full$deviance.p.multi, mtx.test.full$deviance.p)
+plot(mtx.test.full$deviance.p.unknown, mtx.test.full$deviance.p.multi)
+```
+We put the initial classification together for binarization next step.
+```{r}
+init.class <- data.frame(cell.bc = rownames(force.test.qp.deviance), init.class = "Single-ID", stringsAsFactors = F)
+rownames(init.class) <- init.class$cell.bc
+init.class[rownames(mtx.test.full[which(mtx.test.full$deviance.p >= 0.05 & mtx.test.full$deviance.p.multi >= 0.95), ]), "init.class"] <- "Single-ID"
+init.class[rownames(mtx.test.full[which(mtx.test.full$deviance.p.multi >= 0.01 & mtx.test.full$deviance.p.unknown > 0.75 & mtx.test.full$deviance.p < 0.1), ]), "init.class"] <- "Multi_ID"
+init.class[rownames(mtx.test.full[which(mtx.test.full$deviance.p.multi < 0.05 & mtx.test.full$deviance.p.unknown >= 0.3), ]), "init.class"] <- "Unknown"
+```
+
+We quickly evaluate the outcome of the initial classification.
+```{r, fig.width=4, fig.height=8}
+freq.table <- as.data.frame(table(init.class$init.class) * 100/sum(table(init.class$init.class)))
+freq.table <- freq.table[order(freq.table$Freq, decreasing = T), ]
+freq.table$Var1 <- factor(as.character(freq.table$Var1),
+                          levels = as.character(freq.table$Var1),
+                          ordered = T)
+
+ggplot(freq.table, aes(x = "Hematopoiesis", y = Freq, fill = Var1)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_brewer(palette = "Paired") +
+  theme(legend.position = "right",
+        axis.text.x = element_text(face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+
+Based on this initial classification, this reference with endoderm atlas + regenerative liver data represents a promising reference. We move forward with this reference to perform classification
+
+#### Empirical P-value calculation
+Empirical P-value Calculation. This step takes quite a long time. We load previous processed permutation results and follow through. Please the following lines if a re-run is desired.
+```{r, eval=FALSE}
+col.sub <- ncol(background.mtx) - 2
+
+# Conduct reference randomization to get empirical p-value matrix
+ref.perc.list <- percentage.calc(background.mtx[,c(1:col.sub)], background.mtx[,c(1:col.sub)])
+
+# Conduct test randomization to get empirical p-value matrix
+perc.list <- percentage.calc(mtx.test[,c(1:col.sub)], background.mtx[,c(1:col.sub)])
+```
+
+Load the permutation results
+```{r}
+col.sub <- ncol(background.mtx) - 2
+
+ref.perc.list <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Permutation Results/reference_perm_results.Rds")
+perc.list <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Permutation Results/sample_perm_results.Rds")
+```
+
+#### Binarization and Classification
+```{r}
+binary.iep.lt <- binarization.mann.whitney(mtx = mtx.test.full[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.meta.whole, perc.ls = perc.list, init.class = init.class)
+classication.iep.lt <- binary.to.classification(binary.iep.lt)
+rownames(classication.iep.lt) <- classication.iep.lt$barcode
+```
+
+1) Clean up the hybrid cells based on QP scores
+```{r}
+actual.multi.ls <- multi.id.curate.qp(binary.iep.lt, classication.iep.lt, mtx.test.full,  qp.threshold = 0.1)
+classication.iep.lt <- actual.multi.ls[[2]]
+```
+
+2) Filter by the Seurat filtering process
+```{r}
+iep.2d.3d.comb <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Seurat Objects/integrated_iep_2d_3d_object.Rds")
+cells <- rownames(iep.2d.3d.comb@meta.data[which(iep.2d.3d.comb@meta.data$culture_method == "Flat"), ])
+cells.bc <- unlist(lapply(strsplit(cells, "_"), function(x) x[2]))
+
+classication.iep.lt.sub <- classication.iep.lt[cells.bc, ]
+```
+
+3) Plot the distribution of data
+```{r, fig.width=4, fig.height=8}
+classication.iep.lt.sub$general.call <- classication.iep.lt.sub$call
+classication.iep.lt.sub$general.call[which(classication.iep.lt.sub$general.call %in% c("Hepatocyte_DDC","MEF.Trophoblast_Stem_Cell"))] <- "Other Discrete"
+df.to.plot <- as.data.frame(table(classication.iep.lt.sub$general.call))
+df.to.plot$perc <- df.to.plot$Freq*100/sum(df.to.plot$Freq)
+
+ggplot(df.to.plot, aes(x = "Endoderm Atlas + Regenerative Liver + MCA", y = perc, fill = Var1)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_viridis_d(option = "A", begin = 0.55, end = 0.85) +
+  theme(legend.position = "right",
+        axis.text.x = element_text(face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+
+

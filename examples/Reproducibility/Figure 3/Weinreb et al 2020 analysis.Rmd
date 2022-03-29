@@ -1,0 +1,891 @@
+---
+title: "Weinreb and Rodriguez-Fraticelli et al., 2020 Analysis"
+output: html_notebook
+---
+
+### Brief Description
+In this document, we document the analysis of Weinreb and Rodriguez-Fraticelli et al., 2020, lineage tracing (LARRY) hematopoietic stem and progenitor cell differentiation in vitro. We use this dataset to showcase the application of Capybara, and the biological relevance of the hybrid cells. In this notebook, we first run Capybara on the LARRY dataset and identify key hybrid populations.
+
+For details of the dataset, please refer to the Weinreb paper here (https://www.science.org/doi/10.1126/science.aaw3381?url_ver=Z39.88-2003&rfr_id=ori:rid:crossref.org&rfr_dat=cr_pub%20%200pubmed). For details of Capybara, please refer to the Capybara paper here (https://www.sciencedirect.com/science/article/pii/S1934590922000996?dgcid=coauthor).
+
+### Load libraries
+```{r}
+library(Capybara)
+library(ggplot2)
+```
+
+### Load core functions for plotting and clonal data interpretation
+```{r}
+plot.bar.chart <- function(frequency.table, filepath, width, height, label, to.file = FALSE) {
+  
+  freq.sort <- frequency.table[order(frequency.table$Freq, decreasing = T), ]
+  freq.sort.sub <- freq.sort
+  freq.sort.sub$Var1 <- as.character(freq.sort.sub$Var1)
+  freq.sort.sub$Var1 <- factor(freq.sort.sub$Var1, levels = freq.sort.sub$Var1, ordered = T)
+  
+  
+  p1 <- ggplot(freq.sort.sub, aes(x = label, y = Freq, fill = Var1)) +
+    geom_bar(stat = "identity") + 
+    scale_fill_brewer(palette = "Paired") +
+    labs(x = "", y = "Percentage Composition") + 
+    theme(legend.position = "right",
+          axis.text.x = element_text(face = "bold", size = 12),
+          axis.text.y = element_text(face = "bold", size = 12),
+          axis.title.x = element_text(face = "bold.italic", size = 12),
+          axis.title.y = element_text(face = "bold.italic", size = 12),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(), 
+          title = element_text(face = "bold.italic", size = 12),
+          axis.line.y = element_line(colour = "black"),
+          axis.line.x = element_blank())
+  if (to.file) {
+    pdf(filepath, width = width, height = height, paper = "special")
+    print(p1)
+    dev.off()
+  } else {
+    print(p1)
+  }
+}
+```
+
+```{r}
+get.top.three.fates <- function(ind.clone.info, label.col) {
+  if (nrow(ind.clone.info) == 1) {
+      return(data.frame(Var1 = ind.clone.info[1,label.col], Freq = 100, stringsAsFactors = F))
+  }
+  freq.table <- as.data.frame(sort(table(ind.clone.info[,label.col]), decreasing = T) * 100/nrow(ind.clone.info))
+  if (nrow(freq.table) <= 3) {
+    if (nrow(freq.table) == 1) {
+      return(data.frame(Var1 = rownames(freq.table), Freq = 100, stringsAsFactors = F))
+    }
+    return(freq.table)
+  } else {
+    return(freq.table[c(1:3),])
+  }
+}
+
+compute.top.three.fates.for.all <- function(composite.clonal, label.col) {
+  unique.clones.in.comp <- unique(composite.clonal$j)
+  top.three.fates.df <- data.frame()
+  for (uc.in.comp in unique.clones.in.comp) {
+    curr.clone <- composite.clonal[which(composite.clonal$j == uc.in.comp),]
+    top.fates <- get.top.three.fates(curr.clone, label.col)
+    
+    curr.top <- curr.clone[which(curr.clone[,label.col] %in% top.fates$Var1), ]
+    if (nrow(top.three.fates.df) <= 0) {
+      top.three.fates.df <- curr.top
+    } else {
+      top.three.fates.df <- rbind(top.three.fates.df, curr.top)
+    }
+  }
+  
+  return(top.three.fates.df)
+}
+```
+
+```{r}
+compute.composition.clones <- function(clonal.data, label.col) {
+  clones.uniq <- unique(clonal.data$j)
+  composition.clones <- data.frame()
+  for (uc in clones.uniq) {
+    curr.clone.sub <- clonal.data[which(clonal.data$j == uc), ]
+    curr.clone.sub$new.cell.type <- paste0("Day_", curr.clone.sub$tp, "_", curr.clone.sub[,label.col])
+    curr.comp <- as.data.frame(table(curr.clone.sub$new.cell.type) * 100/nrow(curr.clone.sub))
+    curr.comp$clone <- uc
+    
+    if (nrow(composition.clones) <= 0){
+      composition.clones <- curr.comp
+    } else {
+      composition.clones <- rbind(composition.clones, curr.comp)
+    }
+  }
+  
+  return(composition.clones)
+}
+
+compute.composition.clones.d2.6 <- function(clonal.data, label.col) {
+  clones.uniq <- unique(clonal.data$j)
+  composition.clones <- data.frame()
+  for (uc in clones.uniq) {
+    curr.clone.sub <- clonal.data[which(clonal.data$j == uc), ]
+    curr.clone.sub$new.cell.type <- paste0("Day_", curr.clone.sub$tp, "_", curr.clone.sub[,label.col])
+    
+    #d2.comp <- get.top.three.fates(curr.clone.sub[which(curr.clone.sub$tp == 2), ], "with.multi.label")
+    d4.comp <- get.top.three.fates(curr.clone.sub[which(curr.clone.sub$tp == 4), ], "with.multi.label")
+    d6.comp <- get.top.three.fates(curr.clone.sub[which(curr.clone.sub$tp == 6), ], "with.multi.label")    
+    # if (nrow(d2.comp) >= 1) d2.comp$day <- "Day 2"
+    if (nrow(d4.comp) >= 1) d4.comp$day <- "Day 4"
+    if (nrow(d6.comp) >= 1) d6.comp$day <- "Day 6"
+    curr.comp <- rbind(d6.comp, d4.comp)
+    curr.comp$clone <- uc
+    
+    d4.subset <- curr.clone.sub[which(curr.clone.sub$tp == 4),]
+    three.fate.filter <- get.top.three.fates(d4.subset, "with.multi.label")
+    
+    if (nrow(three.fate.filter) == 3) {
+      comp.full <- rbind(rbind(curr.comp, curr.comp), curr.comp)
+    } else if (nrow(three.fate.filter) == 2) {
+      comp.full <- rbind(curr.comp, curr.comp)
+    } else {
+      comp.full <- curr.comp
+    }
+    
+    comp.full$dominate.d4.fate <- rep(three.fate.filter$Var1, each = nrow(curr.comp))
+    
+    if (nrow(composition.clones) <= 0){
+      composition.clones <- comp.full
+    } else {
+      composition.clones <- rbind(composition.clones, comp.full)
+    }
+  }
+  
+  return(composition.clones)
+}
+
+```
+
+```{r}
+identify.strict.clones <- function(clonal.data, strict.label) {
+  unique.clones <- unique(clonal.data$j)
+  strict.d4.clone <- data.frame()
+  for (uc in unique.clones) {
+    curr.clone <- clonal.data[which(clonal.data$j == uc), ]
+    curr.clone.d4 <- curr.clone[which(curr.clone$tp == 4),]
+    if (nrow(curr.clone.d4) > 0) {
+      cell.type.clone.d4 <- as.data.frame(sort(table(curr.clone.d4$with.multi.label), decreasing = T))
+      if (nrow(cell.type.clone.d4) == 1) {
+        if (rownames(cell.type.clone.d4) == strict.label) {
+          strict.d4.clone <- c(strict.d4.clone, uc)
+        }
+      } 
+      # else {
+      #   if ((cell.type.clone.d4$Freq[1] >  cell.type.clone.d4$Freq[2]) & cell.type.clone.d4$Var1[1] == strict.label) {
+      #     strict.d4.clone <- c(strict.d4.clone, uc)
+      #   }
+      # }
+    }
+  }
+  return(strict.d4.clone)
+}
+```
+
+
+### Capybara
+In general, for runtime consideration, we processed the dataset on a High Performance Computing resource. Here, we include the intermediate files, such as the reference, QP outcomes, and permutation results, in this folder for faster processing.
+
+#### Construct the High-Resolution Reference
+Here we construct the reference based on Day 6 major hematopoietic populations, including basophils, eosinophils, monocytes, neutrophils, and mast cells. This was executed on the computing cluster with 6 cores and 128G memory. Considering the long runtime, we will directly import the reference output from this script.
+
+1) Load the meta data
+```{r}
+meta.larry <- read.table("~/Desktop/Reproducibility/Figure 3/Intermediates/LARRY State Fate Data/stateFate_inVitro_metadata.txt", sep = "\t", header = T, stringsAsFactors = F)
+rownames(meta.larry) <- paste0("Cell_", seq(1,130887))
+lsk <- meta.larry[which(meta.larry$Starting.population == "Lin-Kit+Sca1+"), ]
+```
+
+2) Selection of proper cell types and construct references
+```{r, eval=FALSE}
+### Only take Day 4 and Day 6 cells for reference
+lsk.day.4.6 <- lsk[which(lsk$Time.point %in% c(4,6)), ]
+lsk.day.4.6 <- lsk.day.4.6[which(lsk.day.4.6$Cell.type.annotation != "Undifferentiated"), ]
+
+lsk.day.6 <- lsk[which(lsk$Time.point %in% c(6)), ]
+lsk.day.6 <- lsk.day.6[which(lsk.day.6$Cell.type.annotation != "Undifferentiated"), ]
+
+lsk.in.vitro <- readRDS("~/Desktop/Reproducibility/Figure 3/Intermediates/LARRY State Fate Data/lsk_matrix.Rds")
+ct.freq.d6 <- as.data.frame(table(lsk.day.6$Cell.type.annotation))
+
+## remove the cell type with less than 30 cells
+less.than.30.ct.d6 <- as.character(ct.freq.d6[which(ct.freq.d6$Freq <= 30), "Var1"])
+
+lsk.day.6.sub <- lsk.day.6[-which(lsk.day.6$Cell.type.annotation %in% less.than.30.ct.d6), ]
+lsk.in.vitro <- as.matrix(t(lsk.in.vitro[rownames(lsk.day.4.6),]))
+
+lsk.day.6.sub.wo.meg <- lsk.day.6.sub[which(lsk.day.6.sub$Cell.type.annotation != "Meg"), ]
+lsk.day.6.sub.wo.meg.lym <- lsk.day.6.sub.wo.meg[which(lsk.day.6.sub.wo.meg$Cell.type.annotation != "Lymphoid"), ]
+
+reference.new.d6.no.meg.lym <- construct.high.res.reference(lsk.in.vitro[,rownames(lsk.day.6.sub.wo.meg.lym)], lsk.day.6.sub.wo.meg.lym, criteria = "Cell.type.annotation")
+
+saveRDS(reference.new.d6.no.meg.lym, "03_new_lsk_ref_with_cells_over_30_wo_undiff_d6_no_meg_lym.Rds")
+```
+
+#### Quadratic Programming
+This was executed on the computing cluster with 4 cores and 200G memory. Considering the long runtime, we will directly import the QP output from this script.
+
+1) Read in the reference data and load into proper variables
+```{r}
+ref.rslt.lsk <- readRDS("~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LARRY Rerun 102321/03_new_lsk_ref_with_cells_over_30_wo_undiff_d6_no_meg_lym.Rds")
+ref.df.lsk <- ref.rslt.lsk[[3]]
+ref.sc.lsk <- ref.rslt.lsk[[1]]
+ref.meta.lsk <- ref.rslt.lsk[[2]]
+```
+
+2) Prepare the data matrices for downstream analysis
+```{r, eval=FALSE}
+lsk.in.vitro.undifferentiated <- lsk.in.vitro[rownames(lsk)[which(lsk$Cell.type.annotation == "Undifferentiated")], ]
+lsk.in.vitro.undifferentiated <- as.matrix(t(lsk.in.vitro.undifferentiated))
+
+lsk.in.vitro.differentiated <- lsk.in.vitro[rownames(lsk)[which(lsk$Cell.type.annotation != "Undifferentiated")], ]
+
+lsk.in.vitro.differentiated.sub <- lsk.in.vitro.differentiated[setdiff(rownames(lsk.in.vitro.differentiated), ref.meta.lsk$cell.bc), ]
+lsk.in.vitro.differentiated.sub <- as.matrix(t(lsk.in.vitro.differentiated.sub))
+```
+
+3) Run Quadratic Programming
+```{r, eval=FALSE}
+# Measure cell identity in the reference dataset as a background 
+single.round.QP.analysis(ref.df.lsk, ref.sc.lsk, n.cores = 4, 
+                          save.to.path = "/scratch/smlab/kongw/larry_rerun/", 
+                          save.to.filename = "05_LSK_Based_LSK_Differentiated_Sample_Ref_no_meg_lym_no_force", unix.par = TRUE)
+
+# Measure cell identity in the query dataset 
+single.round.QP.analysis(ref.df.lsk, lsk.in.vitro.differentiated.sub, n.cores = 4, 
+                         save.to.path = "/scratch/smlab/kongw/larry_rerun/", 
+                         save.to.filename = "05_LSK_Based_LSK_Differentiated_Sample_Test_no_meg_lym_no_force", unix.par = TRUE)
+
+# Measure cell identity in the query dataset 
+single.round.QP.analysis(ref.df.lsk, lsk.in.vitro.undifferentiated, n.cores = 4, 
+                         save.to.path = "/scratch/smlab/kongw/larry_rerun/", 
+                         save.to.filename = "05_LSK_Based_LSK_Undifferentiated_Sample_Test_no_meg_lym_no_force", unix.par = TRUE)
+
+```
+
+4) Here we load the pre-calculated QP results for this analysis.
+```{r}
+## Background QP scores
+ref.qp <- read.csv("~/Desktop/Reproducibility/Figure 3/Intermediates/QP_Outcomes/05_LSK_Based_LSK_Differentiated_Sample_Ref_no_meg_lym_no_force_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+
+## QP scores for the undifferentiated cells
+undifferentiated.qp <- read.csv("~/Desktop/Reproducibility/Figure 3/Intermediates/QP_Outcomes/05_LSK_Based_LSK_Undifferentiated_Sample_Test_no_meg_lym_no_force_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+
+## QP scores for the differentiated cells
+differentiated.qp <- read.csv("~/Desktop/Reproducibility/Figure 3/Intermediates/QP_Outcomes/05_LSK_Based_LSK_Differentiated_Sample_Test_no_meg_lym_no_force_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+```
+
+#### Empirical p-value calculation
+To calculate the empirical p-value, run the following lines. Here we skip these lines to load previously obtained results.
+```{r, eval=FALSE}
+col.sub <- ncol(ref.qp) - 2
+
+# Conduct reference randomization to get empirical p-value matrix
+ref.perc.list <- percentage.calc(as.matrix(ref.qp[,c(1:col.sub)]), as.matrix(ref.qp[,c(1:col.sub)]))
+
+# Conduct test randomization to get empirical p-value matrix
+diff.perc.list <- percentage.calc(as.matrix(differentiated.qp[,c(1:col.sub)]), as.matrix(ref.qp[,c(1:col.sub)]))
+undiff.perc.list <- percentage.calc(as.matrix(undifferentiated.qp[,c(1:col.sub)]), as.matrix(ref.qp[,c(1:col.sub)]))
+```
+
+Here we load the previous empirical p-value data.
+```{r}
+ref.perm.ls <- readRDS("~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LARRY Rerun 102321/05_ref_percent_list_new_ref_d6_differentiated_no_force.Rds")
+perm.undiff.all <- readRDS("~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LARRY Rerun 102321/05_undiff_percent_list_new_ref_d6_differentiated_no_force.Rds")
+perm.diff.all <- readRDS("~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LARRY Rerun 102321/05_diff_percent_list_new_ref_d6_differentiated_no_force.Rds")
+```
+
+#### Initial Classification
+Here we perform initial classification based on quadratic programming metrics: deviance, error, and lagrangian multipliers. We mainly leverage deviance here to distinguish unknown cells from discrete cells and hybrid cells (note, we use the term 'multi-id' to refer to hybrid cells).
+
+1) Construct the ideal deviance distribution based on the background matrix
+```{r}
+ideal.deviance <- ref.qp[,c(1:5)] - 1/5
+ideal.deviance.all <- rowSums(abs(ideal.deviance))
+ideal.deviance.all.mean <- mean(ideal.deviance.all)
+ideal.deviance.sd <- sd(ideal.deviance.all)
+
+fit <- fitdistr(ideal.deviance.all, "normal")
+
+guessed.multi.id.deviance.mean <- ideal.deviance.all.mean - fit$estimate["sd"]
+guessed.unknown.deviance.mean <- guessed.multi.id.deviance.mean - fit$estimate["sd"]
+
+undifferentiated.qp.deviance <- abs(undifferentiated.qp[,c(1:5)] - 1/5)
+differentiated.qp.deviance <- abs(differentiated.qp[,c(1:5)] - 1/5)
+
+undifferentiated.qp.deviance$total.deviance <- rowSums(undifferentiated.qp.deviance)
+differentiated.qp.deviance$total.deviance <- rowSums(differentiated.qp.deviance)
+
+undifferentiated.qp$deviance <- undifferentiated.qp.deviance[rownames(undifferentiated.qp), "total.deviance"]
+differentiated.qp$deviance <- differentiated.qp.deviance[rownames(differentiated.qp), "total.deviance"]
+
+## Calculate p-values (Undifferentiated Cells)
+undifferentiated.qp$deviance.p <- pnorm(undifferentiated.qp$deviance, mean = ideal.deviance.all.mean, sd = ideal.deviance.sd, lower.tail = T)
+undifferentiated.qp$deviance.p.multi <- pnorm(undifferentiated.qp$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+undifferentiated.qp$deviance.p.unknown <- pnorm(undifferentiated.qp$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd, lower.tail = T)
+
+## Calculate p-values (Differetiated Cells)
+differentiated.qp$deviance.p <- pnorm(differentiated.qp$deviance, mean = ideal.deviance.all.mean, sd = ideal.deviance.sd, lower.tail = T)
+differentiated.qp$deviance.p.multi <- pnorm(differentiated.qp$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+differentiated.qp$deviance.p.unknown <- pnorm(differentiated.qp$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd, lower.tail = T)
+```
+
+2) Threshold selection
+```{r}
+plot(undifferentiated.qp$deviance.p.multi, undifferentiated.qp$deviance.p)
+abline(v = 0.05, col = "red")
+abline(h = 0.05, col = "blue")
+
+plot(undifferentiated.qp$deviance.p.unknown, undifferentiated.qp$deviance.p.multi)
+abline(h = 0.05, col = "blue")
+
+plot(differentiated.qp$deviance.p.multi, differentiated.qp$deviance.p)
+abline(v = 0.05, col = "red")
+abline(h = 0.05, col = "blue")
+
+plot(differentiated.qp$deviance.p.unknown, differentiated.qp$deviance.p.multi)
+abline(h = 0.05, col = "blue")
+```
+
+3) Create the initial classification data frame
+```{r}
+## initial class data frame for the data (Undifferentiated)
+init.class.undiff <- data.frame(cell.bc = rownames(undifferentiated.qp), init.class = "Single-ID", stringsAsFactors = F)
+rownames(init.class.undiff) <- init.class.undiff$cell.bc
+init.class.undiff[rownames(undifferentiated.qp[which(undifferentiated.qp$deviance.p >= 0.05 & undifferentiated.qp$deviance.p.multi >= 0.95), ]), "init.class"] <- "Single-ID"
+init.class.undiff[rownames(undifferentiated.qp[which(undifferentiated.qp$deviance.p.multi >= 0 & undifferentiated.qp$deviance.p.unknown > 0.95 & undifferentiated.qp$deviance.p < 0.05), ]), "init.class"] <- "Multi_ID"
+init.class.undiff[rownames(undifferentiated.qp[which(undifferentiated.qp$deviance.p.multi < 0.05 & undifferentiated.qp$deviance.p.unknown >= 0), ]), "init.class"] <- "Unknown"
+
+## initial class data frame for the data (Differentiated)
+init.class.diff <- data.frame(cell.bc = rownames(differentiated.qp), init.class = "Single-ID", stringsAsFactors = F)
+rownames(init.class.diff) <- init.class.diff$cell.bc
+init.class.diff[rownames(differentiated.qp[which(differentiated.qp$deviance.p >= 0.05 & differentiated.qp$deviance.p.multi >= 0.95), ]), "init.class"] <- "Single-ID"
+init.class.diff[rownames(differentiated.qp[which(differentiated.qp$deviance.p.multi >= 0 & differentiated.qp$deviance.p.unknown > 0.95 & differentiated.qp$deviance.p < 0.05), ]), "init.class"] <- "Multi_ID"
+init.class.diff[rownames(differentiated.qp[which(differentiated.qp$deviance.p.multi < 0.05 & differentiated.qp$deviance.p.unknown > 0), ]), "init.class"] <- "Unknown"
+```
+
+#### Binarization and Classification
+We generate the binarization matrix so that unknowns are labelled '0' and known cell types are labelled '1', and perform classification based on the binarized count. Due to the large cell number, we directly load the binarization counts and classifications.
+
+1) Binarization
+```{r, eval=FALSE}
+col.sub <- ncol(ref.qp) - 2
+bin.count.undiff <- binarization.mann.whitney(mtx = undifferentiated.qp[,c(1:col.sub)], 
+                                            ref.perc.ls = ref.perm.ls[[1]], 
+                                            ref.meta = ref.meta.lsk, perc.ls = perm.undiff.all[[1]], 
+                                            init.class = init.class.undiff)
+
+bin.count.diff <- binarization.mann.whitney(mtx = differentiated.qp[,c(1:col.sub)], 
+                                            ref.perc.ls = ref.perm.ls[[1]], 
+                                            ref.meta = ref.meta.lsk, perc.ls = perm.diff.all[[1]],
+                                            init.class = init.class.diff)
+```
+
+```{r}
+col.sub <- ncol(ref.qp) - 2
+bin.count.undiff <- readRDS("~/Desktop/Reproducibility/Figure 3/Intermediates/Binary_Counts_and_Classifications/undifferentiated_binary_counts.Rds")
+bin.count.diff <- readRDS("~/Desktop/Reproducibility/Figure 3/Intermediates/Binary_Counts_and_Classifications/differentiated_binary_counts.Rds")
+```
+
+2) Classification
+```{r, eval=FALSE}
+classification.undiff <- binary.to.classification(bin.count.undiff[,c(1:col.sub)])
+rownames(classification.undiff) <- classification.undiff$barcode
+classification.diff <- binary.to.classification(bin.count.diff[,c(1:col.sub)])
+rownames(classification.diff) <- classification.diff$barcode
+```
+
+```{r}
+classification.undiff <- readRDS("~/Desktop/Reproducibility/Figure 3/Intermediates/Binary_Counts_and_Classifications/Undifferentiated_class.Rds")
+classification.diff <- readRDS("~/Desktop/Reproducibility/Figure 3/Intermediates/Binary_Counts_and_Classifications/Differentiated_class.Rds")
+```
+
+To this end, we have finished classification of the cells in this dataset. Next, we check the classification result against the cell type annotation from LARRY to check the accuracy of classification and fidelity of the reference.
+
+#### Classification Check
+1) We put the actual label in the classification data frame and compare.
+```{r}
+classification.undiff$actual <- lsk[rownames(classification.undiff), "Cell.type.annotation"]
+classification.undiff$timepoint <- meta.larry[rownames(classification.undiff), "Time.point"]
+table(classification.undiff$call, classification.undiff$timepoint)
+
+classification.diff$actual <- lsk[rownames(classification.diff), "Cell.type.annotation"]
+classification.diff$timepoint <- meta.larry[rownames(classification.diff), "Time.point"]
+table(classification.diff$call, classification.diff$timepoint)
+table(classification.diff$call, classification.diff$actual)
+```
+
+2) We plot the new classification for the undifferentiated cells
+```{r}
+lsk.undiff <- lsk[which(lsk$Cell.type.annotation == "Undifferentiated"),]
+lsk.undiff$capy.call <- classification.undiff[rownames(lsk.undiff), "call"]
+
+lsk.diff <- lsk[which(lsk$Cell.type.annotation != "Undifferentiated"),]
+lsk.diff$capy.call <- classification.diff[rownames(lsk.diff), "call"]
+
+ggplot(lsk, aes(x = SPRING.x, y = SPRING.y)) +
+  geom_point(color = "grey") +
+  geom_point(data = lsk.undiff[which(lsk.undiff$capy.call %in% c("Multi_ID")),], mapping = aes(x = SPRING.x, y = SPRING.y, color = capy.call))
+
+ggplot(lsk, aes(x = SPRING.x, y = SPRING.y)) +
+  geom_point(color = "grey") +
+  geom_point(data = lsk.undiff[which(lsk.undiff$capy.call %in% c("Unknown")),], mapping = aes(x = SPRING.x, y = SPRING.y, color = capy.call))
+
+ggplot(lsk, aes(x = SPRING.x, y = SPRING.y)) +
+  geom_point(color = "grey") +
+  geom_point(data = lsk.undiff[-which(lsk.undiff$capy.call %in% c("Erythroid", "Lymphoid", "Multi_ID", "Unknown")),], mapping = aes(x = SPRING.x, y = SPRING.y, color = capy.call))
+```
+
+3) We plot the new classification for the differentiated cells. 
+```{r}
+ggplot(lsk, aes(x = SPRING.x, y = SPRING.y)) +
+  geom_point(color = "grey") +
+  geom_point(data = lsk.diff[which(lsk.diff$capy.call %in% c("Multi_ID")),], mapping = aes(x = SPRING.x, y = SPRING.y, color = capy.call))
+
+ggplot(lsk, aes(x = SPRING.x, y = SPRING.y)) +
+  geom_point(color = "grey") +
+  geom_point(data = lsk.diff[which(lsk.diff$capy.call %in% c("Unknown")),], mapping = aes(x = SPRING.x, y = SPRING.y, color = capy.call))
+
+ggplot(lsk, aes(x = SPRING.x, y = SPRING.y)) +
+  geom_point(color = "grey") +
+  geom_point(data = lsk.diff[-which(lsk.diff$capy.call %in% c("Erythroid", "Lymphoid", "Multi_ID", "Unknown")),], mapping = aes(x = SPRING.x, y = SPRING.y, color = capy.call))
+```
+
+4) We compare our annotation of the differentiated cells to the cell type annotation from LARRY via heatmap. The color of each block represents percentages. Higher percentage = lighter color.
+```{r}
+heatmap.to.plot <- as.data.frame(apply(table(classification.diff$call, classification.diff$actual), 2, function(x) round(x*100/sum(x), digits = 3)))
+
+heatmap.to.plot$capy.call <- rownames(heatmap.to.plot)
+heatmap.to.plot.melt <- reshape2::melt(heatmap.to.plot)
+```
+
+```{r, fig.width=6, fig.height=6.5}
+heatmap.to.plot.melt$capy.call <- factor(heatmap.to.plot.melt$capy.call,
+                                         levels = c("Baso", "Eos", "Mast", "Monocyte", "Neutrophil", "Unknown", "Multi_ID"),
+                                         ordered = T)
+heatmap.to.plot.melt$variable <- factor(heatmap.to.plot.melt$variable,
+                                         levels = c("Baso", "Eos", "Mast", "Monocyte", "Neutrophil", "Meg", "Erythroid",
+                                                    "Lymphoid", "pDC", "Ccr7_DC"),
+                                         ordered = T)
+ggplot(heatmap.to.plot.melt, aes(x = capy.call, y = variable, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "A", begin = 0.15, end = 0.85) +
+  theme(legend.position = "right",
+        axis.text.x = element_text(face = "bold", size = 12, angle = 45, hjust = 1),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_text(face = "bold.italic", size = 14),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks = element_blank())
+```
+To this end, we have checked the accuracy of classification. Specifically, cell types that did not contribute to reference making mainly contribute to the unknown population in the classification of differentiated cells. We next check the distribution of the hybrid cells before moving into assessing lineage.
+
+#### Hybrid cells
+For further downstream analysis, we reformated the hybrid cells and put them into a data frame with the detailed discrete representations of the hybrids.
+
+1) Here we first put the detailed breakdowns of the hybrid cells into a data frame
+```{r}
+all.bin.count <- rbind(bin.count.diff, bin.count.undiff)
+all.classification <- rbind(classification.diff, classification.undiff)
+multi.id.cells <- all.classification$barcode[which(all.classification$call == "Multi_ID")]
+
+binary.m.id <- as.data.frame(all.bin.count[multi.id.cells, ])
+binary.m.id$cell.id <- rownames(binary.m.id)
+binary.m.id.melt <- reshape2::melt(binary.m.id)
+binary.m.id.melt <- binary.m.id.melt[which(binary.m.id.melt$value > 0), ]
+
+binary.new.2 <- data.frame()
+binary.m.id.melt$variable <- as.character(binary.m.id.melt$variable)
+for (mc in multi.id.cells) {
+  curr.sub <- binary.m.id.melt[which(binary.m.id.melt$cell.id == mc), ]
+  curr.cell.type.combine <- paste0(gsub(pattern = "frxn_cell.type_", replacement = "", x = curr.sub$variable), collapse = "-")
+  
+  curr.df <- data.frame(cell = mc, cell.type = curr.cell.type.combine, stringsAsFactors = F)
+  if (nrow(binary.new.2) <= 0){
+    binary.new.2 <- curr.df
+  } else {
+    binary.new.2 <- rbind(binary.new.2, curr.df)
+  }
+}
+binary.new.2.d2 <- binary.new.2
+rownames(binary.new.2.d2) <- binary.new.2.d2$cell
+binary.new.2.d2$tp <- lsk[rownames(binary.new.2.d2), "Time.point"]
+```
+
+2) We assess the major hybrid populations here.
+```{r}
+hybrid.freq.table <- as.data.frame(table(binary.new.2.d2$cell.type) * 100/sum(table(binary.new.2.d2$cell.type)))
+hybrid.freq.table.sort <- hybrid.freq.table[order(-hybrid.freq.table$Freq), ]
+
+hybrid.freq.table.sort$Var1 <- factor(hybrid.freq.table.sort$Var1, levels = hybrid.freq.table.sort$Var1, ordered = T)
+
+ggplot(hybrid.freq.table.sort, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(face = "bold", size = 12, angle = 90, hjust = 1),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+
+Overall, we identified the major hybrid populations. We investigate the potential of these hybrid cells using the lineage tracing data.
+
+### Clonal information
+Here we load the clonal information from Weinreb et al. and preprocess it in the proper format. We identify the state-fate clones and state-state clones.
+
+1) Load clonal information & identify state-fate clones and state-state clones
+```{r}
+library(Matrix)
+## read in clone matrix and reform the matrix to clone by cell
+clone.anno<-readMM("~/Desktop/Reproducibility/Figure 3/Intermediates/LARRY State Fate Data/stateFate_inVitro_clone_matrix.mtx")
+clone.anno<-t(clone.anno)
+## read in meta
+meta<-read.table("~/Desktop/Reproducibility/Figure 3/Intermediates/LARRY State Fate Data/stateFate_inVitro_metadata.txt",header = T,sep="\t")
+## for each clone, find cell index
+meta.cell.ind<-apply(clone.anno,1, function(x) which(x!=0))
+## find multi-cell clones
+multi.cell.clone<-sapply(meta.cell.ind, function(x) length(x)>1)
+## find cell index for each multi-cell clone
+multi.cell.ind<-apply(clone.anno[which(multi.cell.clone==T),],1, function(x) which(x!=0))
+## find dev time for cells
+clone.time<-sapply(multi.cell.ind, function(x) meta$Time.point[x])
+
+## find state-fate clones
+state.fate.clone<-sapply(clone.time, function(x) length(unique(x))!=1&&2%in%unique(x))
+state.fate.clone.index<-which(state.fate.clone==T)
+
+## find state-state clones
+state.state.clone<-sapply(clone.time, function(x) sum(x==2)>=2)
+state.state.clone.index<-which(state.state.clone==T)
+```
+
+2) Further formatting of the data frame and add time point information
+```{r}
+clone.anno<-readMM("~/Desktop/Reproducibility/Figure 3/Intermediates/LARRY State Fate Data/stateFate_inVitro_clone_matrix.mtx")
+rownames(clone.anno)<-paste("Cell_",1:130887,sep = "")
+colnames(clone.anno)<-paste("Clone_",1:5864,sep = "")
+
+rownames(meta) <- paste("Cell_",1:130887,sep = "")
+
+clone.anno.state.fate <- as.data.frame(Matrix::summary(clone.anno[, state.fate.clone.index]))
+clone.anno.state.state <- as.data.frame(Matrix::summary(clone.anno[, state.state.clone.index]))
+
+clone.anno.state.fate$i <- paste("Cell_", clone.anno.state.fate$i, sep = "")
+clone.anno.state.fate$j <- paste("Clone_", clone.anno.state.fate$j, sep = "")
+
+clone.anno.state.state$i <- paste("Cell_", clone.anno.state.state$i, sep = "")
+clone.anno.state.state$j <- paste("Clone_", clone.anno.state.state$j, sep = "")
+
+clone.anno.state.fate$tp <- meta[clone.anno.state.fate$i, "Time.point"]
+clone.anno.state.state$tp <- meta[clone.anno.state.state$i, "Time.point"]
+```
+
+3) Add the classification information into the clonal data and add the cell type annotation from LARRY into the clonal data frame
+```{r}
+rownames(clone.anno.state.fate) <- clone.anno.state.fate$i
+rownames(clone.anno.state.state) <- clone.anno.state.state$i
+
+clone.anno.state.fate$capy.call <- NA
+
+full.classification.table <- rbind(classification.undiff, classification.diff)
+full.class.intersect.sf <- intersect(rownames(full.classification.table), rownames(clone.anno.state.fate))
+full.class.intersect.ss <- intersect(rownames(full.classification.table), rownames(clone.anno.state.state))
+
+clone.anno.state.fate[full.class.intersect.sf, "capy.call"] <- full.classification.table[full.class.intersect.sf, "call"]
+clone.anno.state.state[full.class.intersect.ss, "capy.call"] <- full.classification.table[full.class.intersect.ss, "call"]
+
+clone.anno.state.fate.no.na <- clone.anno.state.fate[!is.na(clone.anno.state.fate$capy.call), ]
+clone.anno.state.state.no.na <- clone.anno.state.state[!is.na(clone.anno.state.state$capy.call), ]
+
+clone.anno.state.state.no.na$actual.call <- lsk[rownames(clone.anno.state.state.no.na), "Cell.type.annotation"]
+clone.anno.state.fate.no.na$actual.call <- lsk[rownames(clone.anno.state.fate.no.na), "Cell.type.annotation"]
+```
+
+4) Fill in the detailed breakdowns of the hybrid cells
+```{r}
+multi_id.sf.clones <- unique(clone.anno.state.fate.no.na$j[which(clone.anno.state.fate.no.na$capy.call == "Multi_ID")])
+
+clone.anno.state.fate.no.na[, "with.multi.label"] <- binary.new.2.d2[clone.anno.state.fate.no.na$i, "cell.type"]
+clone.anno.state.fate.no.na[which(is.na(clone.anno.state.fate.no.na$with.multi.label)), "with.multi.label"] <- clone.anno.state.fate.no.na$capy.call[which(is.na(clone.anno.state.fate.no.na$with.multi.label))]
+```
+
+5) Assess the lineage related siblings of the hybrid cells. We first compute the clonal composition of the clones where the hybrid cells reside in a data frame.
+```{r}
+clones.sub.with.no.unknown <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$with.multi.label != "Unknown"), ]
+clones.ss.sub.with.no.unknown <- clone.anno.state.state.no.na[which(clone.anno.state.state.no.na$capy.call != "Unknown"), ]
+clones.ss.sub.with.no.unknown$with.multi.label <- clones.ss.sub.with.no.unknown$capy.call
+clones.ss.sub.with.no.unknown$j <- paste0("ss_", clones.ss.sub.with.no.unknown$j)
+clones.ss.sub.with.no.unknown[intersect(rownames(clones.ss.sub.with.no.unknown), rownames(binary.new.2.d2)), "with.multi.label"] <- binary.new.2.d2[intersect(rownames(clones.ss.sub.with.no.unknown), rownames(binary.new.2.d2)), "cell.type"]
+
+clones.aggr <- rbind(clones.sub.with.no.unknown, clones.ss.sub.with.no.unknown)
+meg.neutro <- compute.composition.clones(clones.aggr, "with.multi.label")
+
+clones.with.multi <- meg.neutro[which(meg.neutro$Var1 %in% c("Day_4_Monocyte-Neutrophil", "Day_6_Monocyte-Neutrophil",
+                                                             "Day_4_Baso-Mast", "Day_6_Baso-Eos")), ]
+rownames(clones.with.multi) <- as.character(clones.with.multi$clone)
+clones.with.multi$Var1 <- as.character(clones.with.multi$Var1)
+
+meg.neutro.sub <- meg.neutro[which(meg.neutro$clone %in% clones.with.multi$clone), ]
+
+meg.neutro.sub$Var1 <- as.character(meg.neutro.sub$Var1)
+meg.neutro.sub$new.var <- unlist(lapply(strsplit(meg.neutro.sub$Var1, "_"), function(x) paste0(x[3:length(x)], collapse = "-")))
+
+meg.neutro.sub$clone.multi.label <- clones.with.multi[meg.neutro.sub$clone, "Var1"]
+meg.neutro.sub$clone.multi.label <- gsub("Day_4_", "", meg.neutro.sub$clone.multi.label)
+meg.neutro.sub$clone.multi.label <- gsub("Day_6_", "", meg.neutro.sub$clone.multi.label)
+
+meg.neutro.dt <- setDT(meg.neutro.sub)
+meg.neutro.mtx <- dcast(meg.neutro.dt, clone.multi.label~new.var, fill = 0, value.var = "Freq", fun.aggregate = mean)
+meg.neutro.mtx.recollapse <- reshape2::melt(meg.neutro.mtx)
+```
+
+6) We next plot the percentage of the counter parts of these hybrid cells.
+```{r, fig.width=5, fig.height=4}
+meg.neutro.mtx.recollapse$variable <- as.character(meg.neutro.mtx.recollapse$variable)
+
+meg.neutro.mtx.recollapse$variable <- factor(meg.neutro.mtx.recollapse$variable,
+                                             levels = c("Baso", "Eos", "Mast", "Monocyte", "Neutrophil",
+                                                        "Baso-Mast", "Monocyte-Neutrophil", "Baso-Eos"),
+                                             ordered = T)
+
+meg.neutro.mtx.recollapse$clone.multi.label <- factor(meg.neutro.mtx.recollapse$clone.multi.label,
+                                             levels = c("Baso-Eos", "Baso-Mast", "Monocyte-Neutrophil"),
+                                             ordered = T)
+
+ggplot(meg.neutro.mtx.recollapse, aes(x = variable, y = clone.multi.label, size = ifelse(value==0, NA, value), color = variable, fill = variable)) +
+  geom_point() +
+  scale_color_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_size_area(name = "percentage", max_size = 10)+
+  labs(y = "Hybrid Identities", x = "Clonal Identities") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 12, face = "bold.italic"),
+        legend.position = "none",
+        axis.text.y = element_text(size = 12, face = "bold.italic"))
+```
+7) Here we are trying to find the clonally related cells to the strict defined day 4 clones. For instance, we are searching for the siblings for day 4 clones that are 100% composed of Monocytes to look at their lineage restriction on day 6. 
+```{r}
+#sf.ori <- clone.anno.state.fate.no.na
+clone.anno.state.fate.no.na <- rbind(clone.anno.state.fate.no.na, clones.ss.sub.with.no.unknown)
+# clone.anno.state.fate.no.na <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$with.multi.label != "Unknown"),]
+d4.d6.clonal.info <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$tp %in% c(4,6)), ]
+labels <- unique(d4.d6.clonal.info$with.multi.label)
+single.labels <- unlist(lapply(strsplit(labels, "-"), function(x) length(x) == 1))
+single.labels.chr <- labels[single.labels]
+
+strict.clone.compositions <- data.frame()
+strict.clones.all <- list()
+
+for (curr.l in single.labels.chr) {
+  strict.clones <- unlist(identify.strict.clones(d4.d6.clonal.info, curr.l))
+  d4.strict <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$j %in% strict.clones),]
+  d4.clone.size <- table(d4.strict$j)
+  
+  d4.strict <- d4.strict[which(d4.strict$j %in% names(which(d4.clone.size > 3))), ]
+  
+  if (nrow(d4.strict) > 0) {
+    curr.strict.d4 <- d4.strict[which(d4.strict$tp == 4), ]
+    curr.strict.d6 <- d4.strict[which(d4.strict$tp == 6), ]
+    
+    strict.clones.all[[curr.l]] <- unique(d4.strict$j)
+    
+    if (nrow(curr.strict.d6) > 0) {
+  
+      curr.strict.top.dominant.freq.d4 <- as.data.frame(table(curr.strict.d4$with.multi.label) * 100/sum(table(curr.strict.d4$with.multi.label)))
+      d6.top.fates <- as.character(unique(curr.strict.d6$with.multi.label)[which(unique(curr.strict.d6$with.multi.label) != "Unknown")])
+      curr.strict.top.dominant.freq.d6 <- curr.strict.d6[which(curr.strict.d6$with.multi.label %in% d6.top.fates),]
+      d6.domin.comp <- as.data.frame(table(curr.strict.top.dominant.freq.d6$with.multi.label) * 100/nrow(curr.strict.top.dominant.freq.d6))
+      curr.strict.top.dominant.freq.d4$d4.label <- curr.l
+      d6.domin.comp$d4.label <- curr.l
+      curr.strict.top.dominant.freq.d4$day <- "Day 4"
+      d6.domin.comp$day <- "Day 6"
+      
+      curr.strict.top.dominant.freq <- rbind(curr.strict.top.dominant.freq.d4, d6.domin.comp)
+      
+      if (nrow(strict.clone.compositions) <= 0) {
+        strict.clone.compositions <- curr.strict.top.dominant.freq
+      } else {
+        strict.clone.compositions <- rbind(strict.clone.compositions, curr.strict.top.dominant.freq)
+      }
+    }
+  }
+}
+
+strict.clone.compositions$new.label <- paste0(strict.clone.compositions$day, "_", strict.clone.compositions$Var1)
+dt <- setDT(strict.clone.compositions)
+dt.mtx <- dcast(dt, d4.label~new.label, fill = 0, value.var = "Freq", fun.aggregate = mean)
+
+dt.mtx.recollapse <- reshape2::melt(dt.mtx)
+```
+
+8) Here we are trying to find the clonally related cells to the hybrid cells defined on Day 4, particularly in this case, testing monocyte-neutrophil hybrids and basophil-mast cell hybrids.
+```{r}
+single.recollapse <- dt.mtx.recollapse
+
+double.labels <- unlist(lapply(strsplit(labels, "-"), function(x) length(x) == 2))
+double.labels.chr <- labels[double.labels]
+
+dl.clone.compositions <- data.frame()
+dl.clones.all <- list()
+
+for (curr.dl in double.labels.chr) {
+  clones.with.curr.dl <- unique(clone.anno.state.fate.no.na$j[which(clone.anno.state.fate.no.na$with.multi.label == curr.dl)])
+  d4.strict <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$j %in% clones.with.curr.dl),]
+  
+  d4.clone.size <- table(d4.strict$j)
+  
+  d4.strict <- d4.strict[which(d4.strict$j %in% names(which(d4.clone.size >= 3))), ]
+  
+  if (nrow(d4.strict) > 0) {
+    
+    curr.strict.d4 <- d4.strict[which(d4.strict$tp == 4), ]
+    curr.strict.d6 <- d4.strict[which(d4.strict$tp == 6), ]
+    
+    dl.clones.all[[curr.dl]] <- unique(d4.strict$j)
+    if (nrow(curr.strict.d4) == 0) next
+    
+    if (nrow(curr.strict.d6) > 0) {
+  
+      curr.strict.top.dominant.freq.d4 <- as.data.frame(table(curr.strict.d4[which(curr.strict.d4$with.multi.label != "Unknown"), "with.multi.label"]) * 100/(sum(table(curr.strict.d4[which(curr.strict.d4$with.multi.label != "Unknown"), "with.multi.label"]))))
+      d6.top.fates <- as.character(unique(curr.strict.d6$with.multi.label)[which(unique(curr.strict.d6$with.multi.label) != "Unknown")])
+      curr.strict.top.dominant.freq.d6 <- curr.strict.d6[which(curr.strict.d6$with.multi.label %in% d6.top.fates),]
+      d6.domin.comp <- as.data.frame(table(curr.strict.top.dominant.freq.d6$with.multi.label) * 100/nrow(curr.strict.top.dominant.freq.d6))
+      curr.strict.top.dominant.freq.d4$d4.label <- curr.dl
+      d6.domin.comp$d4.label <- curr.dl
+      curr.strict.top.dominant.freq.d4$day <- "Day 4"
+      d6.domin.comp$day <- "Day 6"
+      
+      curr.strict.top.dominant.freq <- rbind(curr.strict.top.dominant.freq.d4, d6.domin.comp)
+      
+      if (nrow(dl.clone.compositions) <= 0) {
+        dl.clone.compositions <- curr.strict.top.dominant.freq
+      } else {
+        dl.clone.compositions <- rbind(dl.clone.compositions, curr.strict.top.dominant.freq)
+      }
+  }
+  }
+}
+
+dl.clone.compositions$new.label <- paste0(dl.clone.compositions$day, "_", dl.clone.compositions$Var1)
+dt <- setDT(dl.clone.compositions)
+dt.mtx <- dcast(dt, d4.label~new.label, fill = 0, value.var = "Freq", fun.aggregate = mean)
+
+dt.mtx.recollapse <- reshape2::melt(dt.mtx)
+```
+
+9) We combine the strict clone data and the hybrid clonal data.
+```{r}
+dt.mtx.recollapse$variable <- as.character(dt.mtx.recollapse$variable)
+dt.mtx.recollapse$ct <- unlist(lapply(strsplit(dt.mtx.recollapse$variable, "_"), function(x) x[length(x)]))
+dt.mtx.recollapse$tp <- unlist(lapply(strsplit(dt.mtx.recollapse$variable, "_"), function(x) x[1]))
+
+single.recollapse$variable <- as.character(single.recollapse$variable)
+single.recollapse$ct <- unlist(lapply(strsplit(single.recollapse$variable, "_"), function(x) x[length(x)]))
+single.recollapse$tp <- unlist(lapply(strsplit(single.recollapse$variable, "_"), function(x) x[1]))
+
+dt.mtx.recollapse.sub <- dt.mtx.recollapse[which(dt.mtx.recollapse$d4.label %in% c("Monocyte-Neutrophil", "Baso-Eos", "Baso-Mast")), ]
+
+single.recollapse.sub <- single.recollapse[which(single.recollapse$d4.label != "Unknown"), ]
+single.double.recollapse <- rbind(single.recollapse.sub, dt.mtx.recollapse.sub)
+```
+
+10) We take a look at these hybrid clones, compared to their discrete counter parts.
+I) Monocyte-Neutrophil
+```{r}
+subset.mono.neutro <- single.double.recollapse[which(single.double.recollapse$d4.label %in% c("Monocyte", "Neutrophil", "Monocyte-Neutrophil")), ]
+
+subset.mono.neutro <- subset.mono.neutro[-which(subset.mono.neutro$value == 0),]
+
+subset.mono.neutro$ct <- factor(subset.mono.neutro$ct,
+                                levels = c("Monocyte", "Neutrophil", "Monocyte-Neutrophil", "Baso", "Mast", "Eos", "Baso-Eos", "Unknown"),
+                                ordered = T)
+subset.mono.neutro$d4.label <- factor(subset.mono.neutro$d4.label,
+                                levels = rev(c("Monocyte", "Neutrophil", "Monocyte-Neutrophil")),
+                                ordered = T)
+ggplot(subset.mono.neutro, aes(x = ct, y = d4.label, size = ifelse(value==0, NA, value), color = ct, fill = ct)) +
+  geom_point() +
+  scale_color_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_size_area(name = "percentage", max_size = 10)+
+  facet_grid(.~tp) +
+  theme(axis.text.x = element_text(angle = 90, size = 12, face = "bold.italic"),
+        legend.position = "right",
+        axis.text.y = element_text(size = 12, face = "bold.italic"))
+```
+II) Basophil-Mast
+```{r}
+subset.baso.mast <- single.double.recollapse[which(single.double.recollapse$d4.label %in% c("Baso", "Mast", "Baso-Mast")), ]
+subset.baso.mast <- subset.baso.mast[-which(subset.baso.mast$value == 0), ]
+
+subset.baso.mast$ct <- factor(subset.baso.mast$ct,
+                                levels = c("Baso", "Mast", "Baso-Mast", "Monocyte", "Neutrophil"),
+                                ordered = T)
+subset.baso.mast$d4.label <- factor(subset.baso.mast$d4.label,
+                                levels = rev(c("Baso", "Mast", "Baso-Mast")),
+                                ordered = T)
+ggplot(subset.baso.mast, aes(x = ct, y = d4.label, size = ifelse(value==0, NA, value), color = ct, fill = ct)) +
+  geom_point() +
+  scale_color_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_size_area(name = "percentage", max_size = 10)+
+  facet_grid(.~tp) +
+  theme(axis.text.x = element_text(angle = 90, size = 12, face = "bold.italic"),
+        legend.position = "right",
+        axis.text.y = element_text(size = 12, face = "bold.italic"))
+```
+
+11) Here we take a closer look at the monocyte-neutrophil hybrids. Again, we first look at the lineage restricted day 4 clones and their correlated day 6 siblings. Then we look at the hybrids.
+```{r}
+unique.clones <- unique(clone.anno.state.fate.no.na$j)
+monocyte.clones.d4 <- c()
+neutro.clones.d4 <- c()
+for (uc in unique.clones) {
+  curr.clone <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$j == uc), ]
+  curr.clone.d4 <- curr.clone[which(curr.clone$tp == 4),]
+  if (nrow(curr.clone.d4) > 0) {
+    cell.type.clone.d4 <- unique(curr.clone.d4$with.multi.label)
+    if (length(cell.type.clone.d4) == 1) {
+      if (cell.type.clone.d4 == "Monocyte") {
+        monocyte.clones.d4 <- c(monocyte.clones.d4, uc)
+      }
+      if (cell.type.clone.d4 == "Neutrophil") {
+        neutro.clones.d4 <- c(neutro.clones.d4, uc)
+      }
+    }
+  }
+}
+
+mono.d4.strict <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$j %in% strict.clones.all[["Monocyte"]]),]
+neutro.d4.strict <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$j %in% strict.clones.all[["Neutrophil"]]),]
+mono.neutro.d4.clone <- clone.anno.state.fate.no.na[which(clone.anno.state.fate.no.na$j %in% dl.clones.all[["Monocyte-Neutrophil"]]),]
+
+mono.d6.strict <- mono.d4.strict[which(mono.d4.strict$tp %in% c(4,6)), ]
+neutro.d6.strict <- neutro.d4.strict[which(neutro.d4.strict$tp %in% c(4,6)), ]
+mono.neutro.d6.strict <- mono.neutro.d4.clone[which(mono.neutro.d4.clone$tp %in% c(4,6)), ]
+
+mono.neutro.d6.strict.dom.fate <- compute.composition.clones(clonal.data = mono.neutro.d6.strict, "with.multi.label")
+
+d6.cells.singles.freq <- as.data.frame(table(mono.d6.strict$with.multi.label) * 100/nrow(mono.d6.strict))
+```
+
+I) Neutrophil strict clones
+```{r, fig.width=5, fig.height=8}
+d6.cells.singles.freq <- as.data.frame(table(neutro.d6.strict$with.multi.label) * 100/nrow(neutro.d6.strict))
+plot.bar.chart(d6.cells.singles.freq, "~/Desktop/larry_d4_d6_neutro_bar.pdf", 5, 7, "d6 siblings")
+```
+
+II) Monocyte strict clones
+```{r, fig.width=6, fig.height=8}
+d6.cells.singles.freq <- as.data.frame(table(mono.d6.strict[which(mono.d6.strict$with.multi.label != "Unknown"), "with.multi.label"]) * 100/nrow(mono.d6.strict))
+plot.bar.chart(d6.cells.singles.freq, "~/Desktop/larry_d4_d6_mono_bar_2.pdf", 5, 7, "d6 siblings")
+```
+
+
+III) Monocyte-Neutrophil hybrid clones
+```{r, fig.width=6, fig.height=8}
+d6.cells.singles.freq <- as.data.frame(table(mono.neutro.d6.strict[which(mono.neutro.d6.strict$with.multi.label != "Unknown"), "with.multi.label"]) * 100/nrow(mono.neutro.d6.strict))
+plot.bar.chart(d6.cells.singles.freq, "~/Desktop/larry_d4_d6_mono_neutro_bar_2.pdf", 5, 7, "d6 siblings")
+```
+
+Overall, we have shown with the lineage data that these hybrid cells are lineage restricted from their day 4 to day 6 siblings.
+
+
+

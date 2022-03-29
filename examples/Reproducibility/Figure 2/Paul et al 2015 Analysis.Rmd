@@ -1,0 +1,994 @@
+---
+title: "Capybara Analysis of Paul et al."
+output: html_notebook
+---
+
+### Brief Description
+In this notebook, we document Capybara analysis of the Paul et al., 2015 hematopoiesis dataset, charting differentiation of bone marrow-derived myeloid progenitors. We use this dataset to showcase the application of Capybara to a well-defined developmental process. We leverage PAGA-based pseudotime information to compare hybrid cells to their discrete counterparts, demonstrating the biological relevance of hybrid cells.
+
+For details of the dataset, please refer to the Paul paper here (https://www.sciencedirect.com/science/article/pii/S0092867415014932). For details of Capybara cell-type classification, please refer to the Capybara paper here (https://www.sciencedirect.com/science/article/pii/S1934590922000996?dgcid=coauthor).
+
+### Load packages
+```{r, warning=FALSE, message=FALSE}
+library(Seurat)
+library(ggplot2)
+library(SeuratDisk)
+library(ggrepel)
+```
+
+### Basic Information
+Basic information is obtained from the following tutorial: https://scanpy-tutorials.readthedocs.io/en/latest/paga-paul15.html. Please find more information in the Jupyter notebook supplied there.
+
+#### Load the count matrix
+Here we load the Paul et al 2015 count matrix, sourced from the PAGA tutorial. 
+```{r}
+paul_csv <- read.csv("~/Desktop/Reproducibility/Figure 2/Intermediates/Data/paul_count_matx.csv", check.names = F, stringsAsFactors = F, row.names = 1)
+paul_csv_t <- as.data.frame(t(paul_csv))
+colnames(paul_csv_t) <- paste0("Cell_", colnames(paul_csv_t))
+```
+
+#### Load the coordinates
+Here we load the coordinates for the force atlas embedding, guided by PAGA, for downstream visualization. 
+```{r}
+coord <- read.csv("~/Desktop/Reproducibility/Figure 2/Intermediates/Data/coordinates.csv", header = F)
+rownames(coord) <- paste0("Cell_", (seq(nrow(coord)) - 1))
+```
+
+#### Load meta data
+Here we load the coordinates for the force atlas embedding, guided by PAGA, for downstream visualization. 
+```{r}
+meta <- read.csv("~/Desktop/Reproducibility/Figure 2/Intermediates/Data/meta_data.csv", header = T, row.names = 1, check.names = F, stringsAsFactors = F)
+rownames(meta) <- paste0("Cell_", rownames(meta))
+```
+
+We merge the meta data with the coordinates
+```{r}
+meta <- cbind(meta, coord[rownames(meta),])
+```
+
+#### Pseudotime Projection
+Here we have a quick check on the pseudotime projection with the proper coordinates to make sure all cells are properly located on the FA plot.
+```{r, fig.width=4.5, fig.height=4}
+ggplot(meta, aes(x = V1, y = V2, color = dpt_pseudotime)) +
+  geom_point() +
+  scale_color_viridis_c(name = "pseudotime", direction = 1, option = "A") +
+  theme(legend.position="right",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_blank(),
+        axis.ticks = element_blank())
+```
+
+### Capybara
+Briefly, we apply Capybara on the dataset loaded above. We do NOT include the MCA data or the bulk selection step here considering its relatively large size. The bulk selection step provided 4 relevant tissues: bone marrow, bone marrow ckit (grouped as 'bone marrow' in the manuscript), bone marrow mesenchyme (primary mesenchymal stem cells), and peripheral blood. We do include the pipeline for construction of the high resolution reference. If you would like to run this from the raw MCA data, please download the data here (http://bis.zju.edu.cn/MCA/atlas2.html), edit the directories and reconstruct the high-resolution reference.
+
+In general, for runtime consideration, we processed the dataset on a High Performance Computing resource. Hence, we include the intermediate files, such as the reference, QP outcomes, and permutation results, in this folder for faster processing.
+
+#### Load packages
+```{r}
+library(Capybara)
+library(MASS)
+```
+
+#### Construct the high resolution reference from the Mouse Cell Atlas
+1) Here we will load the MCA data related to the 4 relevant tissues.
+```{r, eval=FALSE}
+# Background cells
+mca <- read.csv("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_CellAssignments.csv",
+                row.names = 1, header = T, stringsAsFactors = F)
+mca.meta <- data.frame(row.names = mca$Cell.name, 
+                       tissue = mca$Tissue,
+                       cell.bc.tissue = unlist(lapply(strsplit(mca$Cell.name, "_"), function(x) x[1])),
+                       cell.type = mca$Annotation,
+                       stringsAsFactors = F)
+
+bone.marrow.counts <- read.table("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Bone-Marrow/BoneMarrow1_rm.batch_dge.txt", header = T, row.names = 1, stringsAsFactors = F)
+bone.marrow.counts.2 <- read.table("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Bone-Marrow/BoneMarrow2_rm.batch_dge.txt", header = T, row.names = 1, stringsAsFactors = F)
+colnames(bone.marrow.counts.2) <- gsub("_4", "_2", colnames(bone.marrow.counts.2))
+
+bone.marrow.counts.3 <- read.table("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Bone-Marrow/BoneMarrow3_rm.batch_dge.txt", header = T, row.names = 1, stringsAsFactors = F)
+colnames(bone.marrow.counts.3) <- gsub("_5", "_3", colnames(bone.marrow.counts.3))
+
+bone.marrow.genes <- intersect(intersect(rownames(bone.marrow.counts), rownames(bone.marrow.counts.2)), rownames(bone.marrow.counts.3))
+
+bone.marrow.counts.all <- cbind(cbind(bone.marrow.counts[bone.marrow.genes,], bone.marrow.counts.2[bone.marrow.genes, ]), bone.marrow.counts.3[bone.marrow.genes,])
+
+bone.marrow.m <- read.table("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Bone_Marrow_Mesenchyme/MesenchymalStemCellsPrimary_rm.batch_dge.txt", header = T, row.names = 1, stringsAsFactors = F)
+
+bone.marrow.ckit <- read.table("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Bone-Marrow_c-kit/BoneMarrowcKit1_rm.batch_dge.txt", header = T, row.names = 1, stringsAsFactors = F)
+bone.marrow.ckit.2 <- read.table("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Bone-Marrow_c-kit/BoneMarrowcKit2_rm.batch_dge.txt", header = T, row.names = 1, stringsAsFactors = F)
+bone.marrow.ckit.3 <- read.table("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Bone-Marrow_c-kit/BoneMarrowcKit3_rm.batch_dge.txt", header = T, row.names = 1, stringsAsFactors = F)
+
+bone.marrow.ckit.genes <- intersect(intersect(rownames(bone.marrow.ckit), rownames(bone.marrow.ckit.2)), rownames(bone.marrow.ckit.3))
+bone.marrow.counts.ckit.all <- cbind(cbind(bone.marrow.ckit[bone.marrow.ckit.genes,], bone.marrow.ckit.2[bone.marrow.ckit.genes, ]), bone.marrow.ckit.3[bone.marrow.ckit.genes,])
+
+periphral.blood.1 <- read.csv("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Peripheral_Blood/PeripheralBlood1_rm.batch_dge.txt", sep = "\t", header = T, row.names = 1, stringsAsFactors = F)
+periphral.blood.2 <- read.csv("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Peripheral_Blood/PeripheralBlood2_rm.batch_dge.txt", sep = "\t", header = T, row.names = 1, stringsAsFactors = F)
+periphral.blood.3 <- read.csv("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Peripheral_Blood/PeripheralBlood3_rm.batch_dge.txt", sep = "\t", header = T, row.names = 1, stringsAsFactors = F)
+periphral.blood.4 <- read.csv("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Peripheral_Blood/PeripheralBlood4_rm.batch_dge.txt", sep = "\t", header = T, row.names = 1, stringsAsFactors = F)
+periphral.blood.5 <- read.csv("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Peripheral_Blood/PeripheralBlood5_rm.batch_dge.txt", sep = "\t", header = T, row.names = 1, stringsAsFactors = F)
+periphral.blood.6 <- read.csv("~/Box Sync/Morris Lab/Classifier Analysis/Reference datasets/MCA/MCA_Counts_curated/Peripheral_Blood/PeripheralBlood6_rm.batch_dge.txt", sep = "\t", header = T, row.names = 1, stringsAsFactors = F)
+
+pb.genes <- intersect(intersect(intersect(rownames(periphral.blood.1), rownames(periphral.blood.2)),
+                      intersect(rownames(periphral.blood.3), rownames(periphral.blood.4))),
+                      intersect(rownames(periphral.blood.5), rownames(periphral.blood.6)))
+pb.counts.all <- cbind(periphral.blood.1[pb.genes, ], periphral.blood.2[pb.genes, ], periphral.blood.3[pb.genes, ],
+                       periphral.blood.4[pb.genes, ], periphral.blood.5[pb.genes, ], periphral.blood.6[pb.genes, ])
+
+all.bm.pb.genes <- intersect(intersect(intersect(bone.marrow.genes, bone.marrow.ckit.genes), rownames(bone.marrow.m)), pb.genes)
+
+bone.marrow.all <- cbind(bone.marrow.counts.all[all.bm.pb.genes, ], bone.marrow.m[all.bm.pb.genes, ],
+                         bone.marrow.counts.ckit.all[all.bm.pb.genes, ], pb.counts.all[all.bm.pb.genes, ])
+
+bone.marrow.meta <- mca.meta[which(mca.meta$tissue %in% c("Bone-Marrow", "Bone_Marrow_Mesenchyme", "Bone-Marrow_c-kit", "Peripheral_Blood")), ]
+bone.marrow.meta.2 <- bone.marrow.meta# mca.meta[which(mca.meta$cell.type %in% final.cell.types),]
+```
+
+2) Clean up the cell-type labels to create uniform labeling
+```{r, eval=FALSE}
+bone.marrow.meta$cell.type.1 <- bone.marrow.meta$cell.type
+bone.marrow.meta$cell.type.1 <- gsub("\\(Bone-Marrow\\)", "", bone.marrow.meta$cell.type.1)
+bone.marrow.meta$cell.type.1 <- gsub("\\(Bone_Marrow_Mesenchyme\\)", "", bone.marrow.meta$cell.type.1)
+bone.marrow.meta$cell.type.1 <- gsub("\\(Bone-Marrow_c-kit\\)", "", bone.marrow.meta$cell.type.1)
+bone.marrow.meta$cell.type.1 <- gsub("\\(Peripheral_Blood\\)", "", bone.marrow.meta$cell.type.1)
+
+bone.marrow.meta.2$cell.type.1 <- bone.marrow.meta.2$cell.type
+bone.marrow.meta.2$cell.type.1 <- gsub("\\(Bone-Marrow\\)", "", bone.marrow.meta.2$cell.type.1)
+bone.marrow.meta.2$cell.type.1 <- gsub("\\(Bone_Marrow_Mesenchyme\\)", "", bone.marrow.meta.2$cell.type.1)
+bone.marrow.meta.2$cell.type.1 <- gsub("\\(Bone-Marrow_c-kit\\)", "", bone.marrow.meta.2$cell.type.1)
+bone.marrow.meta.2$cell.type.1 <- gsub("\\(Peripheral_Blood\\)", "", bone.marrow.meta.2$cell.type.1)
+bone.marrow.meta.2$cell.type.1[which(bone.marrow.meta.2$cell.type.1 == "Neutrophil ")] <- "Neutrophil"
+
+bone.marrow.meta$cell.type.2 <- unlist(lapply(strsplit(bone.marrow.meta$cell.type.1, "_"), function(x) x[1]))
+bone.marrow.meta$cell.type.2[which(bone.marrow.meta$cell.type.2 == "Neutrophil ")] <- "Neutrophil"
+bone.marrow.meta$cell.type.2[which(bone.marrow.meta$cell.type.2 == "Monocyte progenitor cell")] <- "Monocyte progenitor"
+bone.marrow.meta$cell.type.2[which(bone.marrow.meta$cell.type.2 == "Basophils")] <- "Basophil"
+```
+
+3) Downsample cells in each tissue by sampling and construct the reference from here.
+```{r, eval=FALSE}
+bm <- rownames(bone.marrow.meta.2)[which(bone.marrow.meta.2$cell.bc.tissue == "BoneMarrow")]
+bmck <- rownames(bone.marrow.meta.2)[which(bone.marrow.meta.2$cell.bc.tissue == "BoneMarrowcKit")]
+mscp <- rownames(bone.marrow.meta.2)[which(bone.marrow.meta.2$cell.bc.tissue == "MesenchymalStemCellsPrimary")]
+pb <- rownames(bone.marrow.meta.2)[which(bone.marrow.meta.2$cell.bc.tissue == "PeripheralBlood")]
+
+sample_list <- c(sample(bm, 2500),
+                 sample(bmck, 2500),
+                 sample(mscp, 2500),
+                 sample(pb, 2500))
+```
+
+4) The cells are used to construct the reference
+```{r, eval=FALSE}
+meta.sub <- bone.marrow.meta[sample_list, ]
+reference.rslt <- construct.high.res.reference(bone.marrow.all, meta.sub, criteria = "cell.type.2", cell.num.for.ref = 90)
+saveRDS(reference.rslt, "~/Desktop/reference_paul_15.Rds")
+```
+
+#### Load pre-generated reference
+Here we load the pre-generated reference for this analysis.
+```{r}
+reference.rslt <- readRDS("~/Desktop/Reproducibility/Figure 2/Intermediates/Reference/reference_paul_15.Rds")
+ref.df <- reference.rslt[[3]]
+ref.meta <- reference.rslt[[2]]
+ref.sc <- reference.rslt[[1]]
+```
+
+#### Quadratic Programming
+1) Run Quadratic Programming.
+```{r, eval=FALSE}
+# Measure cell identity in the reference dataset as a background 
+single.round.QP.analysis(ref.df, ref.sc, n.cores = 4, save.to.path = "~/Desktop/", save.to.filename = "01_MCA_Based_reference_qp_paul_15", unix.par = TRUE)
+
+# Measure cell identity in the query dataset 
+single.round.QP.analysis(ref.df, paul_csv_t, n.cores = 4, save.to.path = "~/Desktop/", save.to.filename = "01_MCA_Based_test_qp_paul_15", unix.par = TRUE, force.eq = 0)
+```
+
+2) Load the pre-calculated QP results for this analysis.
+```{r}
+# Read in background and testing identity scores
+background.mtx <- read.csv("~/Desktop/Reproducibility/Figure 2/Intermediates/QP_Outcomes/01_MCA_Based_reference_qp_paul_15_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+mtx.test <- read.csv("~/Desktop/Reproducibility/Figure 2/Intermediates/QP_Outcomes/01_MCA_Based_test_qp_paul_15_scale.csv", header = T, row.names = 1, stringsAsFactors = F)
+
+col.sub <- ncol(background.mtx) - 2
+```
+
+#### Empirical p-value calculation
+To calculate the empirical p-value, run the following two lines. Here we skip these lines to load previously obtained results.
+```{r, eval=FALSE}
+# Conduct reference randomization to get empirical p-value matrix
+ref.perc.list <- percentage.calc(background.mtx[,c(1:col.sub)], background.mtx[,c(1:col.sub)])
+
+# Conduct test randomization to get empirical p-value matrix
+perc.list <- percentage.calc(as.matrix(mtx.test[,c(1:col.sub)]), as.matrix(background.mtx[,c(1:col.sub)]))
+```
+
+Load the previous empirical p-value data.
+```{r}
+# Conduct reference randomization to get empirical p-value matrix
+ref.perc.list.all <- readRDS("~/Desktop/Reproducibility/Figure 2/Intermediates/Permutation_Results/paul_15_permutation_rslt.Rds")
+ref.perc.list <- ref.perc.list.all$ref
+perc.list <- ref.perc.list.all$sample
+```
+
+#### Initial Classification
+We perform initial classification based on quadratic programming metrics: deviance, error, and lagrangian multipliers. Here, we primarily leverage deviance to distinguish unknown, discrete, and hybrid cells.
+
+1) Construct the ideal deviance distribution based on the background matrix
+```{r}
+background.mtx.scale <- as.data.frame(t(apply(background.mtx[,c(1:67)], 1, function(x) x*(1/sum(x)))))
+ideal.deviance <- abs(background.mtx.scale[,c(1:67)] - 1/67)
+ideal.deviance.all <- rowSums(abs(ideal.deviance))
+ideal.deviance.all.mean <- mean(ideal.deviance.all)
+ideal.deviance.sd <- sd(ideal.deviance.all)
+
+fit <- fitdistr(ideal.deviance.all, densfun = "normal")
+
+force.test.qp.deviance <- abs(mtx.test[,c(1:67)] - 1/67)
+
+force.test.qp.deviance$total.deviance <- rowSums(force.test.qp.deviance)
+mtx.test$deviance <- force.test.qp.deviance[rownames(mtx.test), "total.deviance"]
+
+ideal.deviance.all.mean.sc <- ideal.deviance.all.mean
+
+guessed.multi.id.deviance.mean <- ideal.deviance.all.mean.sc - ideal.deviance.sd * 2
+guessed.unknown.deviance.mean <- guessed.multi.id.deviance.mean - ideal.deviance.sd * 2
+
+mtx.test$deviance.p <- pnorm(mtx.test$deviance, mean = ideal.deviance.all.mean.sc, sd = ideal.deviance.sd, lower.tail = T)
+mtx.test$deviance.p.multi <- pnorm(mtx.test$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd *2, lower.tail = T)
+mtx.test$deviance.p.unknown <- pnorm(mtx.test$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+```
+
+2) Threshold selection
+```{r}
+plot(mtx.test$deviance.p.multi, mtx.test$deviance.p)
+abline(v = 0.4, col = "red")
+abline(h = 0.01, col = "blue")
+
+plot(mtx.test$deviance.p.unknown, mtx.test$deviance.p.multi)
+abline(v = 0.01, col = "red")
+abline(h = 0.01, col = "blue")
+```
+
+3) Create the initial classification data frame
+```{r}
+init.class <- data.frame(cell.bc = rownames(mtx.test), init.class = "Unknown", stringsAsFactors = F)
+rownames(init.class) <- init.class$cell.bc
+init.class$init.class <- "Single-ID"
+init.class[rownames(mtx.test[which(mtx.test$deviance.p >= 0.01 & mtx.test$deviance.p.multi >= 0.9), ]), "init.class"] <- "Single-ID"
+init.class[rownames(mtx.test[which(mtx.test$deviance.p.multi >= 0.4 & mtx.test$deviance.p.unknown >= 0.95 & mtx.test$deviance.p < 0.1), ]), "init.class"] <- "Multi-ID"
+init.class[rownames(mtx.test[which(mtx.test$deviance.p.multi < 0.01 & mtx.test$deviance.p.unknown >= 0.01), ]), "init.class"] <- "Unknown"
+```
+
+4) Assess the initial classification breakdowns
+```{r, fig.width=4, fig.height=8}
+freq.table <- as.data.frame(table(init.class$init.class) * 100/sum(table(init.class$init.class)))
+freq.table <- freq.table[order(freq.table$Freq, decreasing = T), ]
+freq.table$Var1 <- factor(as.character(freq.table$Var1),
+                          levels = as.character(freq.table$Var1),
+                          ordered = T)
+
+ggplot(freq.table, aes(x = "Hematopoiesis", y = Freq, fill = Var1)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_brewer(palette = "Paired") +
+  theme(legend.position = "right",
+        axis.text.x = element_text(face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+
+#### Binarization and Classification
+We generate the binarization matrix so that unknown cells are labelled 0, unknown progenitors -1, and known cell types labelled 1, and perform classification based on the binarized count.
+```{r}
+# Binarization of inference results
+bin.count <- binarization.mann.whitney(mtx = mtx.test[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.meta, perc.ls = perc.list, init.class = init.class)
+# Classificationn
+classification <- binary.to.classification(bin.count[,c(1:col.sub)])
+rownames(classification) <- classification$barcode
+```
+
+At this stage, we have completed classification of the cells in this dataset. Next, we will take a closer look at the Capybara classification outcomes in comparison to the annotation from Paul et al. and PAGA. 
+
+### Tissues Mapped
+1) We observe where most of the cells mapped to after high-resolution classification. This information is gathered based on the reference meta data.
+```{r}
+ref.meta$tissue <- unlist(lapply(strsplit(ref.meta$cell.bc, "_"), function(x) x[1]))
+rslt <- as.data.frame(table(ref.meta$cell.type, ref.meta$tissue))
+ct.tissue.map <- unique(ref.meta[,c(1,3)])
+
+ct.tissue.map.df <- data.frame()
+uniq.ct <- unique(ct.tissue.map$cell.type)
+
+for (uc in uniq.ct) {
+  curr.ct.tissue.map <- ct.tissue.map[which(ct.tissue.map$cell.type == uc), ]
+  if (nrow(curr.ct.tissue.map) <= 1) {
+    curr.df <- curr.ct.tissue.map
+  } else {
+    freq.sub <- rslt[which(as.character(rslt$Var1) == uc), ]
+    major.cont <- as.character(freq.sub$Var2[which(freq.sub$Freq == max(freq.sub$Freq))])
+    curr.df <- data.frame(cell.type = uc, tissue = major.cont, stringsAsFactors = F)
+  }
+  
+  if (nrow(ct.tissue.map.df) <= 0) {
+    ct.tissue.map.df <- curr.df
+  } else {
+    ct.tissue.map.df <- rbind(ct.tissue.map.df, curr.df)
+  }
+}
+
+rownames(ct.tissue.map.df) <- gsub(" ", ".", ct.tissue.map.df$cell.type)
+rownames(ct.tissue.map.df) <- gsub("-", ".", rownames(ct.tissue.map.df))
+
+```
+
+2) We plot the mapped tissue percentages using a stacked barchart. The color scheme of this differs from the paper as we merged the subcategories under bone marrow.
+```{r, fig.width=5, fig.height=8}
+classification$tissue <- ct.tissue.map.df[classification$call, "tissue"]
+
+freq.table <- as.data.frame(table(classification$tissue) * 100/sum(table(classification$tissue)))
+freq.table <- freq.table[order(freq.table$Freq, decreasing = T), ]
+freq.table$Var1 <- factor(as.character(freq.table$Var1),
+                          levels = as.character(freq.table$Var1),
+                          ordered = T)
+
+freq.table$color <- c(RColorBrewer::brewer.pal(12, "Paired")[3],
+                      RColorBrewer::brewer.pal(12, "Paired")[7],
+                      RColorBrewer::brewer.pal(12, "Paired")[2],
+                      RColorBrewer::brewer.pal(12, "Paired")[6])
+
+ggplot(freq.table, aes(x = "Hematopoiesis", y = Freq, fill = Var1)) +
+  geom_bar(position = "stack", stat = "identity") +
+  scale_fill_manual(values = freq.table$color) +
+  theme(legend.position = "right",
+        axis.text.x = element_text(face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+Overall, we are primarily mapping to bone marrow (BoneMarrowcKit and BoneMarrow are aggregated in the manuscript figure, for simplicity) and some peripheral blood cells. We next group cells and annotate clusters, comparing with Paul et al. and PAGA annotations.
+
+### Metadata clean up and grouping
+1) Group Paul & PAGA annotation for a final "ground-truth" annotation
+```{r}
+meta.all <- cbind(meta, classification[rownames(meta), ])
+meta.all$paul_anno <- meta.all$paul15_clusters
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "MEP"))] <- "MEP"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "GMP"))] <- "GMP"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "DC"))] <- "DC"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "Baso"))] <- "Baso"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "Mo"))] <- "Mo"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "Neu"))] <- "Neu"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "Eos"))] <- "Eos"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "Lymph"))] <- "Lymph"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "Ery"))] <- "Ery"
+meta.all$paul_anno[which(endsWith(meta.all$paul_anno, "Mk"))] <- "Mk"
+```
+
+2) Group Capybara annotations together
+```{r}
+meta.all$more_gathered_ct <- unlist(lapply(strsplit(meta.all$call, "_"), function(x) x[[1]]))
+meta.all$more_gathered_ct[which(meta.all$more_gathered_ct %in% c("Monocyte", "Monocyte.progenitor", "Monocyte.progenitor.cell"))] <- "Monocyte.progenitor"
+meta.all$more_gathered_ct[which(meta.all$more_gathered_ct %in% c("Eosinophil.progenitor.cell", "Eosinophils"))] <- "Eosinophils.progenitor"
+meta.all$more_gathered_ct[which(meta.all$more_gathered_ct %in% c("Pre.pro.B.cell", "B.cell"))] <- "B.cell.progenitor"
+meta.all$more_gathered_ct[which(meta.all$more_gathered_ct %in% c("Multi"))] <- "Hybrid"
+meta.all$more_gathered_ct[which(meta.all$more_gathered_ct %in% c("Hematopoietic.stem.progenitor.cell", "Multipotent.progenitor"))] <- "MPP"
+```
+
+3) Look at frequency of different cell types
+```{r}
+freq.table <- as.data.frame(table(meta.all$more_gathered_ct[which(meta.all$more_gathered_ct != "Hybrid")]) * 100/sum(table(meta.all$more_gathered_ct[which(meta.all$more_gathered_ct != "Hybrid")])))
+freq.table <- freq.table[order(freq.table$Freq, decreasing = T), ]
+freq.table$Var1 <- factor(as.character(freq.table$Var1),
+                          levels = as.character(freq.table$Var1),
+                          ordered = T)
+
+freq.table.sub <- freq.table[which(freq.table$Freq > 1.5),]
+freq.table.sub <- rbind(freq.table.sub, data.frame(Var1 = "Other", Freq = (100 - sum(freq.table.sub$Freq))))
+
+ggplot(freq.table.sub, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(face = "bold", size = 12, angle = 90, hjust = 1),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+
+### Cluster Labels and Comparison to Previous Labels
+Here we label the clusters based on the most represented population in each cluster.
+
+1) Assign cluster labels based on PAGA annotation
+2) Assign cluster labels based on Capybara annotation
+```{r}
+meta.all$louvain.label <- NA
+meta.all$louvain.label[which(meta.all$louvain %in% c(16))] <- "Stem"
+meta.all$louvain.label[which(meta.all$louvain %in% c(10,17,5,3))] <- "Ery0"
+meta.all$louvain.label[which(meta.all$louvain %in% c(15, 6))] <- "Ery1"
+meta.all$louvain.label[which(meta.all$louvain %in% c(18))] <- "Ery2"
+meta.all$louvain.label[which(meta.all$louvain %in% c(13))] <- "Ery3"
+meta.all$louvain.label[which(meta.all$louvain %in% c(7,12))] <- "Ery4"
+
+meta.all$louvain.label[which(meta.all$louvain %in% c(20, 8))] <- "MEP"
+meta.all$louvain.label[which(meta.all$louvain %in% c(4,0))] <- "GMP"
+meta.all$louvain.label[which(meta.all$louvain %in% c(22))] <- "Baso"
+
+meta.all$louvain.label[which(meta.all$louvain %in% c(19,14,2))] <- "Neu"
+meta.all$louvain.label[which(meta.all$louvain %in% c(24,9,1,11))] <- "Mo"
+meta.all$louvain.label[which(meta.all$louvain %in% c(23))] <- "DC"
+meta.all$louvain.label[which(meta.all$louvain %in% c(21))] <- "Lymph"
+
+meta.all$capy.cluster.label <- NA
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(0,16))] <- "MPP/HSPC"
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(1,9,11,24))] <- "Monocyte.progenitor"
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(2,14))] <- "Neutrophil"
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(3,5,6,7,12,13,18,15))] <- "Erythrocyte.progenitor"
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(4))] <- meta.all$more_gathered_ct[which(meta.all$louvain %in% c(4))]
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(8,20))] <- meta.all$more_gathered_ct[which(meta.all$louvain %in% c(8,20))]
+
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(10, 17))] <- "Erythroblast"
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(19))] <- meta.all$more_gathered_ct[which(meta.all$louvain %in% c(19))]
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(22))] <- "Basophil"
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(21))] <- "NK.cell"
+meta.all$capy.cluster.label[which(meta.all$louvain %in% c(23))] <- "DC"
+```
+
+3) Here we further clean up the hybrid cells to produce the complete list of cells with discrete identities.
+```{r}
+multi.classification.list <- multi.id.curate.qp(binary.counts = bin.count, classification = classification, qp.matrix = mtx.test)
+# Reassign variables
+actual.multi <- multi.classification.list[[1]]
+new.classification <- multi.classification.list[[2]]
+colnames(new.classification) <- c("bc", "new.call")
+```
+
+4) Add the corrected classifcation to the meta data
+```{r}
+meta.all <- cbind(meta.all, new.classification[rownames(meta.all), ])
+meta.all$more_gathered_ct_new <- unlist(lapply(strsplit(meta.all$new.call, "_"), function(x) x[[1]]))
+meta.all$more_gathered_ct_new[which(meta.all$more_gathered_ct_new %in% c("Monocyte", "Monocyte.progenitor", "Monocyte.progenitor.cell"))] <- "Monocyte.progenitor"
+meta.all$more_gathered_ct_new[which(meta.all$more_gathered_ct_new %in% c("Eosinophil.progenitor.cell", "Eosinophils"))] <- "Eosinophils.progenitor"
+meta.all$more_gathered_ct_new[which(meta.all$more_gathered_ct_new %in% c("Pre.pro.B.cell", "B.cell"))] <- "B.cell.progenitor"
+meta.all$more_gathered_ct_new[which(meta.all$more_gathered_ct_new %in% c("Multi"))] <- "Multi_ID"
+meta.all$more_gathered_ct_new[which(meta.all$more_gathered_ct_new %in% c("Multipotent.progenitor","Hematopoietic.stem.progenitor.cell"))] <- "MPP/HSPC"
+```
+
+5) To assess the discrete cells only, we remove the hybrid cells for now.
+```{r}
+meta.all.no.multi <- meta.all[which(meta.all$new.call != "Multi_ID"), ]
+meta.all.table <- table(meta.all.no.multi$capy.cluster.label, meta.all.no.multi$louvain.label)
+meta.all.table <- as.data.frame(apply(meta.all.table, 2, function(x) round(x *100/sum(x), digits = 3)))
+meta.all.table$capy.call <- rownames(meta.all.table) 
+```
+
+6) Heatmap plot and comparison
+```{r}
+meta.melt <- reshape2::melt(meta.all.table)
+meta.melt <- meta.melt[which(meta.melt$capy.call != "Hybrid"),]
+meta.melt <- meta.melt[which(meta.melt$capy.call != "MPP"),]
+
+meta.melt$variable <- factor(meta.melt$variable,
+                              levels = c("Ery0", "Ery1", "Ery2","Ery3", "Ery4","MEP",
+                                         "Baso", "Mo", "Neu", "Lymph", "GMP",  "Stem", "DC"),
+                             ordered = T)
+
+meta.melt$capy.call <- factor(meta.melt$capy.call,
+                              levels = c("Erythroblast", "Erythrocyte.progenitor", "Megakaryocyte.progenitor.cell",
+                                         "Basophil", "Monocyte.progenitor", "Neutrophil", "NK.cell", "MPP/HSPC",
+                                         "DC", "B.cell.progenitor", "Eosinophils.progenitor"),
+                              ordered = T)
+
+ggplot(meta.melt, aes(x = variable, y = capy.call, fill = value)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "A", name = "percentage", begin = 0.15, end = 0.85) +
+  ggtitle("Paul et al. 2015") +
+  labs(x = "Original Annotation", y = "Capybara Annotation") +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle = 90, hjust =1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_text(face = "bold.italic", size = 14),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_blank(),
+        axis.ticks = element_blank())
+```
+
+Overall, we are corresponding well to the Paul et al & PAGA annotation. We next carefully assess the hybrid cells, leveraging pseudotime information from PAGA.
+
+### Pseudotime
+#### Discrete Identities
+First, we check the pseudotime of the discrete cell types classified in the dataset as another benchmarking metric to evaluate the efficacy of the classification, where we see HSPCs occupuing the earliest pseudotime.
+
+```{r, fig.width=5, height = 8, warning=FALSE}
+median.quartile <- function(x){
+  out <- quantile(x, probs = c(0.25,0.5,0.75))
+  names(out) <- c("ymin","y","ymax")
+  return(out) 
+}
+meta.sub.for.pseudotime <- meta.all[-which(meta.all$more_gathered_ct_new %in% c("Dendritic.cell", "NK.cell", "Multi_ID", "B.cell.progenitor")), ]
+meta.sub.for.pseudotime$more_gathered_ct_new <- factor(meta.sub.for.pseudotime$more_gathered_ct_new,
+                                                   levels = c("MPP/HSPC", 
+                                                              "Megakaryocyte.progenitor.cell", "Basophil", "Eosinophils.progenitor",
+                                                              "Monocyte.progenitor", "Neutrophil", "Macrophage",
+                                                              "Erythrocyte.progenitor", "Erythroblast"),
+                                                   ordered = T)
+cs <- viridis(20)
+ggplot(meta.sub.for.pseudotime, aes(x = more_gathered_ct_new, y = dpt_pseudotime, fill = more_gathered_ct_new)) +
+  geom_violin(scale = "width") +
+  stat_summary(fun.y=median.quartile,geom='point', color = rep(cs[c(20, 20, 20, 20, 20, 1,1,1,1)], each = 3)) +
+  stat_summary(fun.y=median.quartile,geom='line', color = rep(cs[c(20, 20, 20, 20, 20, 1,1,1,1)], each = 3)) +
+  geom_jitter(color = "grey", size = 0.1) +
+  scale_fill_viridis_d(option = "A") +
+  coord_flip() +
+  theme(legend.position="none",
+        axis.text.x = element_text(face = "bold.italic"),
+        axis.text.y = element_text(face = "bold"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black", size = 1))
+```
+
+#### Hybrid Cells
+Ideally, hybrid cells should have a pseudotime range in between their origin and destination cell states. Therefore, we investigate the pseudotime distribution of these cells and their discrete counterparts.
+
+1) We first input the pseudotime for the discrete cell types that compose the hybrids in a data frame
+```{r}
+pseudotime.for.each.category <- meta.all[-which(meta.all$more_gathered_ct_new == "Multi_ID" | meta.all$dpt_pseudotime == Inf), ]
+pseudotime.dt <- pseudotime.for.each.category[,c(5,16,20)]
+mean.pseudotime.dt <- c()
+unique.ct <- unique(pseudotime.for.each.category$more_gathered_ct_new)
+for (ct in unique.ct) {
+  mean.pseudotime.dt[ct] <- mean(pseudotime.for.each.category[which(pseudotime.for.each.category$more_gathered_ct_new == ct), "dpt_pseudotime"])
+}
+```
+
+2) We next isolate pseudotime for the hybrids
+```{r}
+ct.pseudo <- as.data.frame(mean.pseudotime.dt)
+multi.id.pseudo <- actual.multi
+multi.id.pseudo$pseudotime <- meta.all[actual.multi$cell.bc, "dpt_pseudotime"]
+multi.id.pseudo <- multi.id.pseudo[-which(multi.id.pseudo$pseudotime == Inf),]
+multi.id.pseudo$ct.only <- gsub("frxn_cell.type_", "", multi.id.pseudo$variable)
+multi.id.pseudo$ct.only <- unlist(lapply(strsplit(multi.id.pseudo$ct.only, "_"), function(x) x[1]))
+
+multi.id.pseudo$ct.only.avg.pseudo <- ct.pseudo[multi.id.pseudo$ct.only, "mean.pseudotime.dt"]
+multi.id.pseudo <- multi.id.pseudo[!is.na(multi.id.pseudo$ct.only.avg.pseudo), ]
+```
+
+3) More detailed break down of the hybrids
+```{r}
+cell.table <- data.frame()
+cell.uniq <- unique(multi.id.pseudo$cell.bc)
+for (curr.c in cell.uniq) {
+  ct <- multi.id.pseudo[which(multi.id.pseudo$cell.bc == curr.c), "ct.only"]
+  ct[which(ct == "Monocyte")] <- "Monocyte.progenitor"
+  
+  if (length(unique(ct)) > 1 &
+      length(unique(ct)) == 2) {
+    
+    curr.df <- data.frame(cell.bc = curr.c,
+                          identity = paste0(sort(unique(ct)), collapse = "-"),
+                          pseudo = mean(multi.id.pseudo[which(multi.id.pseudo$cell.bc == curr.c), "pseudotime"]),
+                          min.range = min(multi.id.pseudo[which(multi.id.pseudo$cell.bc == curr.c), "ct.only.avg.pseudo"]),
+                          max.range = max(multi.id.pseudo[which(multi.id.pseudo$cell.bc == curr.c), "ct.only.avg.pseudo"]),
+                          stringsAsFactors = F)
+    
+    if (nrow(cell.table) <= 0) {
+      cell.table <- curr.df
+    } else {
+      cell.table <- rbind(cell.table, curr.df)
+    }
+  }
+}
+```
+
+4) Identify the major hybrid populations.
+```{r, fig.height=8}
+freq.table.new <- as.data.frame(table(cell.table$identity))
+freq.table.new <- freq.table.new[order(freq.table.new$Freq, decreasing = T), ]
+
+freq.table <- as.data.frame(table(cell.table$identity) * 100/sum(table(cell.table$identity)))
+freq.table <- freq.table[order(freq.table$Freq, decreasing = T), ]
+freq.table$Var1 <- factor(as.character(freq.table$Var1),
+                          levels = as.character(freq.table$Var1),
+                          ordered = T)
+
+freq.table.sub <- freq.table[which(freq.table$Freq > 1000/257),]
+freq.table.sub$Freq <- freq.table.sub$Freq * 100/sum(freq.table.sub$Freq)
+
+ggplot(freq.table.sub, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(face = "bold", size = 12, angle = 90, hjust = 1),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black"),
+        axis.ticks.x = element_blank())
+```
+
+5) Filter the hybrids to the five major populations for the pseudotime comparison
+```{r}
+cell.table.sub <- cell.table[which(cell.table$identity %in% c("Erythroblast-Erythrocyte.progenitor", "Monocyte.progenitor-Neutrophil",
+                                                              "Erythrocyte.progenitor-Megakaryocyte.progenitor.cell", 
+                                                              "Eosinophils-Monocyte.progenitor", "Eosinophils-Megakaryocyte.progenitor.cell")), ]
+meta.all.multi.cells <- meta.all[which(rownames(meta.all) %in% cell.table.sub$cell.bc), ]
+rownames(cell.table.sub) <- cell.table.sub$cell.bc
+meta.all.multi.cells$multi.break.down <- cell.table.sub[rownames(meta.all.multi.cells), "identity"]
+```
+
+6) We first look at the largest hybrid population: erythroblast-erythrocyte progenitor hybrids
+```{r}
+unq.ct <- unique(meta.all$more_gathered_ct_new)
+label_df <- data.frame()
+for (curr.ct in unq.ct) {
+  curr_sub <- meta.all[which(meta.all$more_gathered_ct_new == curr.ct),]
+  curr_v1 <- mean(curr_sub$V1)
+  curr_v2 <- mean(curr_sub$V2)
+  curr_df <- data.frame(V1 = curr_v1, V2 = curr_v2, cell.type = curr.ct, stringsAsFactors = F)
+  if (nrow(label_df) <= 0) {
+    label_df <- curr_df
+  } else {
+    label_df <- rbind(label_df, curr_df)
+  }
+}
+label_df_no_multi <- label_df[-which(label_df$cell.type == "Multi_ID"),]
+meta.all$cell.type <- meta.all$more_gathered_ct_new
+```
+
+```{r}
+meta.all[, "ery.ery.multi"] <- 0
+meta.all[cell.table[which(cell.table$identity == "Erythroblast-Erythrocyte.progenitor"), "cell.bc"], "ery.ery.multi"] <- 1
+```
+
+```{r, fig.width=7, fig.height=7.5}
+library(ggforce)
+ggplot(label_df_no_multi[which(label_df_no_multi$cell.type %in% c("Erythroblast", "Erythrocyte.progenitor")),], aes(x = V1, y = V2, label = cell.type, color = cell.type)) +
+  geom_point(data = meta.all, color = "lightgrey") +
+  geom_point(data = meta.all[which(meta.all$more_gathered_ct_new %in% c("Erythroblast", "Erythrocyte.progenitor")),], aes(color = more_gathered_ct_new)) +
+  geom_circle(data = meta.all[which(meta.all$ery.ery.multi == 1), ], mapping = aes(x0 = V1, y0 = V2, r = 100), fill = "darkgrey", inherit.aes = F) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Paired")[c(5,6)]) +
+  geom_text_repel(box.padding = 0.5, max.overlaps = Inf, color = "black") +
+  #geom_point() + 
+  labs(x = "FA1", y = "FA2") +
+  ggtitle("Capybara Annotation: Erythroblast & Erythrocyte Progenitor") +
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title = element_text(face = "bold.italic", size = 14), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black", size = 0.5),
+        axis.ticks = element_blank())
+```
+7) We next look at all the other hybrids
+
+I) Monocyte.progenitor-Neutrophil hybrids
+```{r,fig.width=7, fig.height=7.5}
+ggplot(label_df_no_multi[which(label_df_no_multi$cell.type %in% c("Monocyte.progenitor", "Neutrophil")),], aes(x = V1, y = V2, label = cell.type, color = cell.type)) +
+  geom_point(data = meta.all, color = "lightgrey") +
+  geom_point(data = meta.all[which(meta.all$more_gathered_ct_new %in% c("Monocyte.progenitor", "Neutrophil")),], aes(color = more_gathered_ct_new)) +
+  geom_circle(data = meta.all[cell.table[which(cell.table$identity == "Monocyte.progenitor-Neutrophil"), "cell.bc"], ], mapping = aes(x0 = V1, y0 = V2, r = 100), fill = "darkgrey", inherit.aes = F) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Paired")[c(5,6)]) +
+  geom_text_repel(box.padding = 0.5, max.overlaps = Inf, color = "black") +
+  #geom_point() + 
+  labs(x = "FA1", y = "FA2") +
+  ggtitle("Capybara Annotation: Monocyte Progenitor & Neutrophil") +
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title = element_text(face = "bold.italic", size = 14), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black", size = 0.5),
+        axis.ticks = element_blank())
+```
+
+II) Erythrocyte.progenitor-Megakaryocyte.progenitor.cell hybrids
+```{r, fig.width=7, fig.height=7.5}
+ggplot(label_df_no_multi[which(label_df_no_multi$cell.type %in% c("Erythrocyte.progenitor", "Megakaryocyte.progenitor.cell")),], aes(x = V1, y = V2, label = cell.type, color = cell.type)) +
+  geom_point(data = meta.all, color = "lightgrey") +
+  geom_point(data = meta.all[which(meta.all$more_gathered_ct_new %in% c("Erythrocyte.progenitor", "Megakaryocyte.progenitor.cell")),], aes(color = more_gathered_ct_new)) +
+  geom_circle(data = meta.all[cell.table[which(cell.table$identity == "Erythrocyte.progenitor-Megakaryocyte.progenitor.cell"), "cell.bc"], ], mapping = aes(x0 = V1, y0 = V2, r = 100), fill = "darkgrey", inherit.aes = F) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Paired")[c(5,6)]) +
+  geom_text_repel(box.padding = 0.5, max.overlaps = Inf, color = "black") +
+  #geom_point() + 
+  labs(x = "FA1", y = "FA2") +
+  ggtitle("Capybara Annotation: Megakaryocyte Progenitor & Erythrocyte Progenitor") +
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title = element_text(face = "bold.italic", size = 14), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black", size = 0.5),
+        axis.ticks = element_blank())
+```
+
+III) Eosinophils.progenitor-Megakaryocyte.progenitor.cell hybrids
+```{r, fig.width=7, fig.height=7.5}
+ggplot(label_df_no_multi[which(label_df_no_multi$cell.type %in% c("Eosinophils.progenitor", "Megakaryocyte.progenitor.cell")),], aes(x = V1, y = V2, label = cell.type, color = cell.type)) +
+  geom_point(data = meta.all, color = "lightgrey") +
+  geom_point(data = meta.all[which(meta.all$more_gathered_ct_new %in% c("Eosinophils.progenitor", "Megakaryocyte.progenitor.cell")),], aes(color = more_gathered_ct_new)) +
+  geom_circle(data = meta.all[cell.table[which(cell.table$identity == "Eosinophils-Megakaryocyte.progenitor.cell"), "cell.bc"], ], mapping = aes(x0 = V1, y0 = V2, r = 100), fill = "darkgrey", inherit.aes = F) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Paired")[c(5,6)]) +
+  geom_text_repel(box.padding = 0.5, max.overlaps = Inf, color = "black") +
+  #geom_point() + 
+  labs(x = "FA1", y = "FA2") +
+  ggtitle("Capybara Annotation: Megakaryocyte Progenitor & Eosinophil Progenitor") +
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title = element_text(face = "bold.italic", size = 14), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black", size = 0.5),
+        axis.ticks = element_blank())
+```
+
+IV) Eosinophils.progenitor-Monocyte.progenitor hybrids
+```{r, fig.width=7, fig.height=7.5}
+ggplot(label_df_no_multi[which(label_df_no_multi$cell.type %in% c("Eosinophils.progenitor", "Monocyte.progenitor")),], aes(x = V1, y = V2, label = cell.type, color = cell.type)) +
+  geom_point(data = meta.all, color = "lightgrey") +
+  geom_point(data = meta.all[which(meta.all$more_gathered_ct_new %in% c("Eosinophils.progenitor", "Monocyte.progenitor")),], aes(color = more_gathered_ct_new)) +
+  geom_circle(data = meta.all[cell.table[which(cell.table$identity == "Eosinophils-Monocyte.progenitor"), "cell.bc"], ], mapping = aes(x0 = V1, y0 = V2, r = 100), fill = "darkgrey", inherit.aes = F) +
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Paired")[c(5,6)]) +
+  geom_text_repel(box.padding = 0.5, max.overlaps = Inf, color = "black") +
+  #geom_point() + 
+  labs(x = "FA1", y = "FA2") +
+  ggtitle("Capybara Annotation: Eosinophil Progenitor & Monocyte Progenitor") +
+  theme(legend.position="none",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title = element_text(face = "bold.italic", size = 14), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(colour = "black", size = 0.5),
+        axis.ticks = element_blank())
+```
+
+8) We next plot violin plots to compare hybrid and discrete cell pseudotime.
+
+```{r, fig.width=7, fig.height=9, warning=FALSE}
+library(ggpubr)
+multi.meta.pseudotime <- meta.all.multi.cells[,c(5,16,20)]
+colnames(multi.meta.pseudotime)[3] <- "more_gathered_ct_new"
+multi.meta.pseudotime$category <- "multis"
+rownames(cell.table.sub) <- cell.table.sub$cell.bc
+multi.meta.pseudotime$more_gathered_ct_new <- cell.table.sub[rownames(multi.meta.pseudotime), "identity"]
+pseudotime.dt$category <- "ends"
+combined.to.plot <- rbind(multi.meta.pseudotime, pseudotime.dt)
+
+combined.to.plot$new.cat.1 <- NA
+combined.to.plot$new.cat.2 <- NA
+combined.to.plot$new.cat.3 <- NA
+combined.to.plot$new.cat.4 <- NA
+combined.to.plot$new.cat.5 <- NA
+combined.to.plot$new.cat.6 <- NA
+
+combined.to.plot[which(combined.to.plot$more_gathered_ct_new %in% c("Erythroblast", "Erythrocyte.progenitor", "Erythroblast-Erythrocyte.progenitor")), "new.cat.1"] <-"Erythroblast-Erythrocyte.progenitor"
+
+combined.to.plot$more_gathered_ct_new[which(combined.to.plot$more_gathered_ct_new=="Monocyte-Neutrophil")] <- "Monocyte.progenitor-Neutrophil"
+combined.to.plot[which(combined.to.plot$more_gathered_ct_new %in% c("Monocyte.progenitor","Neutrophil", "Monocyte.progenitor-Neutrophil")), "new.cat.2" ] <-"Monocyte.progenitor-Neutrophil"
+
+combined.to.plot[which(combined.to.plot$more_gathered_ct_new %in% c("Erythrocyte.progenitor-Megakaryocyte.progenitor.cell", "Erythrocyte.progenitor","Megakaryocyte.progenitor.cell")), "new.cat.4" ] <-"Erythrocyte.progenitor-Megakaryocyte.progenitor.cell"
+
+combined.to.plot[which(combined.to.plot$more_gathered_ct_new %in% c("Eosinophils-Monocyte.progenitor", "Eosinophils.progenitor", "Monocyte.progenitor")), "new.cat.5"] <-"Eosinophils.progenitor-Monocyte.progenitor"
+
+combined.to.plot[which(combined.to.plot$more_gathered_ct_new %in% c("Eosinophils-Megakaryocyte.progenitor.cell", "Eosinophils.progenitor", "Megakaryocyte.progenitor.cell")), "new.cat.6" ] <-"Eosinophils-Megakaryocyte.progenitor.cell"
+cs <- viridis(20, option = "A", begin = 0.15, end = 0.85)
+
+my_comparisons <- list( c("Erythroblast", "Erythroblast-Erythrocyte.progenitor"), c("Erythrocyte.progenitor", "Erythroblast-Erythrocyte.progenitor"))
+ggplot(combined.to.plot[!is.na(combined.to.plot$new.cat.1), ], aes(x = more_gathered_ct_new, y = dpt_pseudotime, fill = category)) +
+  geom_violin() +
+  geom_jitter(color = "black", size = 0.8) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  stat_summary(fun.y=median.quartile,geom='point', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_summary(fun.y=median.quartile,geom='line', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_compare_means(comparisons = my_comparisons, label = "..p.signif..") +
+  labs(y = "pseudotime") +
+  ggtitle("Erythroblast-Erythrocyte.progenitor") + 
+  theme(legend.position="none",
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 14, face = "bold.italic"),
+        axis.title.x = element_blank(),
+        title = element_text(size = 16, face = "bold.italic"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"))
+
+my_comparisons <- list( c("Monocyte.progenitor", "Monocyte.progenitor-Neutrophil"), c("Neutrophil", "Monocyte.progenitor-Neutrophil"))
+ggplot(combined.to.plot[!is.na(combined.to.plot$new.cat.2), ], aes(x = more_gathered_ct_new, y = dpt_pseudotime, fill = category)) +
+  geom_violin() +
+  geom_jitter(color = "black", size = 0.8) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +stat_summary(fun.y=median.quartile,geom='point', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_summary(fun.y=median.quartile,geom='line', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_compare_means(comparisons = my_comparisons, label = "..p.signif..") +
+  labs(y = "pseudotime") +
+  ggtitle("Monocyte.progenitor-Neutrophil") +
+  theme(legend.position="none",
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 14, face = "bold.italic"),
+        axis.title.x = element_blank(),
+        title = element_text(size = 16, face = "bold.italic"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"))
+
+my_comparisons <- list( c("Megakaryocyte.progenitor.cell", "Erythrocyte.progenitor-Megakaryocyte.progenitor.cell"), c("Erythrocyte.progenitor", "Erythrocyte.progenitor-Megakaryocyte.progenitor.cell"))
+ggplot(combined.to.plot[!is.na(combined.to.plot$new.cat.4), ], aes(x = more_gathered_ct_new, y = dpt_pseudotime, fill = category)) +
+  geom_violin() +
+  geom_jitter(color = "black", size = 0.8) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  stat_summary(fun.y=median.quartile,geom='point', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_summary(fun.y=median.quartile,geom='line', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_compare_means(comparisons = my_comparisons, label = "..p.signif..") +
+  labs(y = "pseudotime") +
+  ggtitle("Erythrocyte.progenitor-Megakaryocyte.progenitor.cell") + 
+  theme(legend.position="none",
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 14, face = "bold.italic"),
+        axis.title.x = element_blank(),
+        title = element_text(size = 16, face = "bold.italic"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"))
+
+my_comparisons <- list( c("Megakaryocyte.progenitor.cell", "Eosinophils-Megakaryocyte.progenitor.cell"), c("Eosinophils.progenitor", "Eosinophils-Megakaryocyte.progenitor.cell"))
+eos.mk <- combined.to.plot[!is.na(combined.to.plot$new.cat.6), ]
+eos.mk$more_gathered_ct_new <- factor(eos.mk$more_gathered_ct_new, levels = c("Eosinophils.progenitor", "Eosinophils-Megakaryocyte.progenitor.cell", "Megakaryocyte.progenitor.cell"), ordered = T)
+ggplot(eos.mk, aes(x = more_gathered_ct_new, y = dpt_pseudotime, fill = category)) +
+  geom_violin() +
+  geom_jitter(color = "black", size = 0.8) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  stat_summary(fun.y=median.quartile,geom='point', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_summary(fun.y=median.quartile,geom='line', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_compare_means(comparisons = my_comparisons, label = "..p.signif..") +
+  labs(y = "pseudotime") +
+  ggtitle("Eosinophils-Megakaryocyte.progenitor.cell") + 
+  theme(legend.position="none",
+        axis.text.x = element_text( size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 14, face = "bold.italic"),
+        axis.title.x = element_blank(),
+        title = element_text(size = 14, face = "bold.italic"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"))
+
+my_comparisons <- list( c("Monocyte.progenitor", "Eosinophils-Monocyte.progenitor"), c("Eosinophils.progenitor", "Eosinophils-Monocyte.progenitor"))
+eos.mono <- combined.to.plot[!is.na(combined.to.plot$new.cat.5), ]
+eos.mono$more_gathered_ct_new <- factor(eos.mono$more_gathered_ct_new, levels = c("Eosinophils.progenitor", "Eosinophils-Monocyte.progenitor", "Monocyte.progenitor"), ordered = T)
+ggplot(eos.mono, aes(x = more_gathered_ct_new, y = dpt_pseudotime, fill = category)) +
+  geom_violin() +
+  geom_jitter(color = "black", size = 0.8) +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  stat_summary(fun.y=median.quartile,geom='point', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_summary(fun.y=median.quartile,geom='line', color = rep(cs[c(20,1,20)], each = 3)) +
+  stat_compare_means(comparisons = my_comparisons, label = "..p.signif..") +
+  labs(y = "pseudotime") +
+  ggtitle("Eosinophils-Monocyte.progenitor") + 
+  theme(legend.position="none",
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 14, face = "bold.italic"),
+        axis.title.x = element_blank(),
+        title = element_text(size = 14, face = "bold.italic"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"))
+  
+  
+```
+Overall, hybrid cells occupy intermediate pseudotime, between discrete cell states.
+
+### Transition score vs Connectivity Matrix from PAGA 
+We next compare connectivity scores from PAGA to support our transition metric.
+
+1) We calculate the transition scores for these cells
+```{r}
+scores <- transition.score(actual.multi)
+```
+
+2) We load the connectivity matrix from PAGA
+```{r}
+connectivity <- read.table("~/Desktop/Reproducibility/Figure 2/Intermediates/Data/connectivity_mtx.txt")
+rownames(connectivity) <- rownames(meta.all)
+colnames(connectivity) <- rownames(meta.all)
+```
+
+3) We compute the connectivity score based on the connectivity matrix. The score is calculated based on the within-cluster cell-to-cell connectivity and the cross-cluster cell-to-cell connectivity.
+```{r}
+in.cell.type.connectivity.score <- c()
+out.cell.type.connectivity.score <- c()
+for (i in 1:nrow(scores)) {
+  curr.ct <- rownames(scores)[i]
+  cells.in.cell.ty <- rownames(meta.all)[which(meta.all$new.call == curr.ct)]
+  if (length(cells.in.cell.ty) > 0) {
+    in.cell.type.connectivity.score[curr.ct] <- sum(connectivity[cells.in.cell.ty, cells.in.cell.ty])
+    out.cell.type.connectivity.score[curr.ct] <- sum(connectivity[cells.in.cell.ty, which(!colnames(connectivity) %in% cells.in.cell.ty)])
+  }
+}
+
+in.cell.type.connectivity.score <- as.data.frame(in.cell.type.connectivity.score)
+colnames(in.cell.type.connectivity.score) <- "In.Cell.Type"
+in.cell.type.connectivity.score$Out.Cell.Type <- out.cell.type.connectivity.score[rownames(in.cell.type.connectivity.score)]
+in.cell.type.connectivity.score$transition.score <- scores[rownames(in.cell.type.connectivity.score), "entropy"]
+```
+
+4) Plot to assess correlation
+```{r}
+ggplot(in.cell.type.connectivity.score, aes(x = log1p(transition.score), y = log1p(Out.Cell.Type))) +
+  geom_point() +
+  theme(legend.position="none",
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14, face = "bold.italic"),
+        title = element_text(size = 14, face = "bold.italic"),
+        panel.grid.major = element_line(colour = 'grey', linetype = 'dashed'), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"))
+```
+
+5) Calculate Pearson's Correlation
+```{r}
+cor(in.cell.type.connectivity.score$Out.Cell.Type, in.cell.type.connectivity.score$transition.score)
+```
+
+

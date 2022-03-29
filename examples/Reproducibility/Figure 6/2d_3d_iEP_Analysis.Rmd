@@ -1,0 +1,508 @@
+---
+title: "iEP Data 2D-3D Analysis"
+output: html_notebook
+---
+
+### Brief Description
+In this notebook, we document the analysis of the iEP dataset, charting the cell type changes on different culture methods (2D culture vs 3D culture). We use this dataset to showcase the application of Capybara on a relatively uncharacterized reprogramming cell type. In this notebook file, we start with previous outcomes from Capybara. The 2D and 3D datasets were processed through the standard Seurat V4 pipeline.
+
+For details of iEPs, please refer to Sekiya and Suzuki 2011 (https://www.nature.com/articles/nature10263), Morris et al 2014 (https://www.cell.com/cell/fulltext/S0092-8674(14)00935-0?_returnURL=https%3A%2F%2Flinkinghub.elsevier.com%2Fretrieve%2Fpii%2FS0092867414009350%3Fshowall%3Dtrue), and Biddy et al 2018 (https://www.nature.com/articles/s41586-018-0744-4). For details of Capybara, please refer to the Capybara paper here (https://www.sciencedirect.com/science/article/pii/S1934590922000996?dgcid=coauthor).
+
+### Load packages
+```{r}
+library(Seurat)
+library(dplyr)
+library(patchwork)
+library(ggplot2)
+library(ggpubr)
+library(viridis)
+```
+
+### Capybara
+We first load the integrated seurat object for the 3D samples
+```{r}
+library(Capybara)
+icm.combined.with_sm <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Seurat Objects/replicate_integrated_seurat_object.Rds")
+reference <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Reference Data/028_reference_with_BEC_hep.Rds")
+ref.sc <- reference[[1]]
+ref.meta <- reference[[2]]
+ref.df <- reference[[3]]
+```
+
+1) We run quadratic programming on this dataset. As this dataset could take a while to run, we have included previous outcomes in the reproducibility folder. If interested, please run the next few lines.
+```{r, eval=FALSE}
+test.sc <- as.matrix(icm.combined.with_sm@assays$RNA@counts[, rownames(icm.combined.with_sm@meta.data)])
+gene.intersect <- intersect(rownames(test.sc), rownames(ref.sc))
+test.sc.scale <- test.sc[gene.intersect,]/(mean(test.sc[gene.intersect,])/mean(as.matrix(ref.sc[gene.intersect,])))
+
+single.round.QP.analysis(ref.df, ref.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "09_3D_LT_matrigel_iEP_reference_qp_gene_select")
+
+single.round.QP.analysis(ref.df, test.sc.scale, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "10_3D_LT_matrigel_iEP_test_qp_gene_select")
+```
+
+Load the QP scores
+```{r}
+scaled.no.force.ref.qp <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/09_3D_LT_matrigel_iEP_reference_qp_gene_select_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+
+scaled.no.force.test.qp <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/10_3D_LT_matrigel_iEP_test_qp_gene_select_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+```
+
+2) Empirical P-value Calculation. This step took quite a long time. We load previous processed permutation results and follow through. Please use the following lines if a re-run is desired.
+```{r, eval=FALSE}
+col.sub <- ncol(scaled.force.ref.qp) - 2
+
+ref.perc.list <- percentage.calc(scaled.no.force.ref.qp[,c(1:col.sub)], scaled.no.force.ref.qp[,c(1:col.sub)])
+perc.list <- percentage.calc(scaled.no.force.test.qp[,c(1:col.sub)], scaled.no.force.ref.qp[,c(1:col.sub)])
+
+```
+
+Load the permutation results
+```{r}
+col.sub <- ncol(scaled.no.force.ref.qp) - 2
+
+ref.perc.list <-readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Permutation Results/09_scaled_no_forced_reference_perm_rslt.Rds")
+perc.list <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Permutation Results/10_scaled_no_forced_test_perm_rslt.Rds")
+```
+
+3) Initial classification
+```{r}
+ideal.deviance <- scaled.no.force.ref.qp[,c(1:20)] - 1/20
+ideal.deviance.all <- rowSums(abs(ideal.deviance))
+ideal.deviance.all.mean <- mean(ideal.deviance.all)
+ideal.deviance.sd <- sd(ideal.deviance.all)
+
+library(MASS)
+fit <- fitdistr(ideal.deviance.all, densfun = "normal")
+
+force.test.qp.deviance <- abs(scaled.no.force.test.qp[,c(1:20)] - 1/20)
+
+force.test.qp.deviance$total.deviance <- rowSums(force.test.qp.deviance)
+scaled.no.force.test.qp$deviance <- force.test.qp.deviance[rownames(scaled.no.force.test.qp), "total.deviance"]
+
+guessed.multi.id.deviance.mean <- ideal.deviance.all.mean - ideal.deviance.sd
+guessed.unknown.deviance.mean <- guessed.multi.id.deviance.mean - ideal.deviance.sd
+
+scaled.no.force.test.qp$deviance.p <- pnorm(scaled.no.force.test.qp$deviance, mean = ideal.deviance.all.mean, sd = ideal.deviance.sd, lower.tail = T)
+scaled.no.force.test.qp$deviance.p.multi <- pnorm(scaled.no.force.test.qp$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+scaled.no.force.test.qp$deviance.p.unknown <- pnorm(scaled.no.force.test.qp$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+```
+
+Here we assess the plot of p-values for hybrid, single, and unknowns for initial classification thresholds
+```{r}
+plot(scaled.no.force.test.qp$deviance.p.multi, scaled.no.force.test.qp$deviance.p)
+plot(scaled.no.force.test.qp$deviance.p.unknown, scaled.no.force.test.qp$deviance.p.multi)
+```
+
+We put the initial classification together for binarization next step.
+```{r}
+init.class <- data.frame(cell.bc = rownames(force.test.qp.deviance), init.class = "Single-ID", stringsAsFactors = F)
+rownames(init.class) <- init.class$cell.bc
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p >= 0.05 & scaled.no.force.test.qp$deviance.p.multi >= 0.95), ]), "init.class"] <- "Single-ID"
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p.multi >= 0 & scaled.no.force.test.qp$deviance.p.unknown > 0.4 & scaled.no.force.test.qp$deviance.p < 0.05), ]), "init.class"] <- "Multi_ID"
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p.multi < 0.01 & scaled.no.force.test.qp$deviance.p.unknown >= 0.4), ]), "init.class"] <- "Unknown"
+```
+
+4) Binarization
+```{r}
+binary.iep.lt <- binarization.mann.whitney(mtx = scaled.no.force.test.qp[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.meta, perc.ls = perc.list, init.class = init.class)
+classication.iep.lt <- binary.to.classification(binary.iep.lt)
+rownames(classication.iep.lt) <- classication.iep.lt$barcode
+```
+
+5) We further break down the hybrid cells identified in the 3D dataset.
+```{r}
+multi.3d.correct <- multi.id.curate.qp(binary.iep.lt, classication.iep.lt, scaled.no.force.test.qp)
+multi.actual <- multi.3d.correct[[1]]
+multi.id.cells <- unique(multi.actual$cell.bc)
+
+binary.m.id <- as.data.frame(binary.iep.lt[multi.id.cells, ])
+binary.m.id$cell.id <- rownames(binary.m.id)
+binary.m.id.melt <- reshape2::melt(binary.m.id)
+binary.m.id.melt <- binary.m.id.melt[which(binary.m.id.melt$value > 0), ]
+
+binary.new.21 <- data.frame()
+binary.m.id.melt$variable <- as.character(binary.m.id.melt$variable)
+for (mc in multi.id.cells) {
+  curr.sub <- binary.m.id.melt[which(binary.m.id.melt$cell.id == mc), ]
+  curr.cell.type.combine <- paste0(gsub(pattern = "frxn_cell.type_", replacement = "", x = curr.sub$variable), collapse = "-")
+  
+  curr.df <- data.frame(cell = mc, cell.type = curr.cell.type.combine, stringsAsFactors = F)
+  if (nrow(binary.new.21) <= 0){
+    binary.new.21 <- curr.df
+  } else {
+    binary.new.21 <- rbind(binary.new.21, curr.df)
+  }
+}
+new.rslt <- table(binary.new.21$cell.type) * 100/sum(table(binary.new.21$cell.type))
+```
+
+
+```{r}
+icm.combined.with_sm@meta.data$capy.call <- classication.iep.lt[rownames(icm.combined.with_sm@meta.data), "call"]
+icm.combined.with_sm@meta.data$more.general.capy.call <- icm.combined.with_sm@meta.data$capy.call
+icm.combined.with_sm@meta.data$more.general.capy.call[which(startsWith(tolower(icm.combined.with_sm@meta.data$more.general.capy.call), "stromal.cell"))] <- "Stromal.cell"
+```
+
+```{r}
+DimPlot(icm.combined.with_sm, group.by = "more.general.capy.call", reduction = "umap") + scale_color_brewer(palette = "Paired")
+```
+```{r, fig.width=9, fig.height=4}
+DimPlot(icm.combined.with_sm, group.by = "more.general.capy.call", reduction = "umap", split.by = "replicate") + scale_color_manual(values = c(RColorBrewer::brewer.pal(12, "Paired")[c(2,6,4,8,11,10,12)]))
+```
+
+### Load the 2D objects
+```{r}
+d2.raw.obj <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Seurat Objects/lt_d2_rep1_seurat.Rds")
+d16.raw.obj <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Seurat Objects/lt_d16_rep2_seurat.Rds")
+```
+
+#### Capybara on Replicate #1 first
+1) QP
+```{r, eval=FALSE}
+test.sc <- as.matrix(d2.raw.obj@assays$RNA@counts[, rownames(d2.raw.obj@meta.data)])
+gene.intersect <- intersect(rownames(test.sc), rownames(ref.sc))
+test.sc.scale <- test.sc[gene.intersect,]/(mean(test.sc[gene.intersect,])/mean(as.matrix(ref.sc[gene.intersect,])))
+
+single.round.QP.analysis(ref.df, ref.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LT iEP 3D Analysis/QPs/", save.to.filename = "11_2D_LT_iEP_reference_qp_gene_select")
+
+single.round.QP.analysis(ref.df, test.sc.scale, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LT iEP 3D Analysis/QPs/", save.to.filename = "12_2D_LT_iEP_test_qp_gene_select")
+```
+
+2) Load the QP scores
+```{r}
+scaled.no.force.ref.qp <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/11_2D_LT_iEP_reference_qp_gene_select_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+
+scaled.no.force.test.qp <- read.csv("~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/12_2D_LT_iEP_test_qp_gene_select_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+```
+
+3) Permutation
+```{r}
+col.sub <- ncol(scaled.no.force.ref.qp) - 2
+
+# Conduct reference randomization to get empirical p-value matrix
+ref.perc.list <- percentage.calc(mtx = scaled.no.force.ref.qp[,c(1:col.sub)], bkgd.mtx = scaled.no.force.ref.qp[,c(1:col.sub)])
+
+# Conduct test randomization to get empirical p-value matrix
+perc.list <- percentage.calc(mtx = scaled.no.force.test.qp[,c(1:col.sub)], bkgd.mtx = scaled.no.force.ref.qp[,c(1:col.sub)])
+```
+
+```{r}
+ideal.deviance <- scaled.no.force.ref.qp[,c(1:20)] - 1/20
+ideal.deviance.all <- rowSums(abs(ideal.deviance))
+ideal.deviance.all.mean <- mean(ideal.deviance.all)
+ideal.deviance.sd <- sd(ideal.deviance.all)
+
+library(MASS)
+fit <- fitdistr(ideal.deviance.all, densfun = "normal")
+
+force.test.qp.deviance <- abs(scaled.no.force.test.qp[,c(1:20)] - 1/20)
+
+force.test.qp.deviance$total.deviance <- rowSums(force.test.qp.deviance)
+scaled.no.force.test.qp$deviance <- force.test.qp.deviance[rownames(scaled.no.force.test.qp), "total.deviance"]
+
+guessed.multi.id.deviance.mean <- ideal.deviance.all.mean - ideal.deviance.sd
+guessed.unknown.deviance.mean <- guessed.multi.id.deviance.mean - ideal.deviance.sd
+
+scaled.no.force.test.qp$deviance.p <- pnorm(scaled.no.force.test.qp$deviance, mean = ideal.deviance.all.mean, sd = ideal.deviance.sd, lower.tail = T)
+scaled.no.force.test.qp$deviance.p.multi <- pnorm(scaled.no.force.test.qp$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+scaled.no.force.test.qp$deviance.p.unknown <- pnorm(scaled.no.force.test.qp$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+```
+
+```{r}
+init.class <- data.frame(cell.bc = rownames(force.test.qp.deviance), init.class = "Single-ID", stringsAsFactors = F)
+rownames(init.class) <- init.class$cell.bc
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p >= 0.05 & scaled.no.force.test.qp$deviance.p.multi >= 0.95), ]), "init.class"] <- "Single-ID"
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p.multi >= 0 & scaled.no.force.test.qp$deviance.p.unknown > 0.4 & scaled.no.force.test.qp$deviance.p < 0.05), ]), "init.class"] <- "Multi_ID"
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p.multi < 0.01 & scaled.no.force.test.qp$deviance.p.unknown >= 0.4), ]), "init.class"] <- "Unknown"
+```
+
+4) Classification
+```{r}
+binary.iep.lt.2d <- binarization.mann.whitney(mtx = scaled.no.force.test.qp[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.meta, perc.ls = perc.list, init.class = init.class)
+classication.iep.lt.2d <- binary.to.classification(binary.iep.lt.2d)
+rownames(classication.iep.lt.2d) <- classication.iep.lt.2d$barcode
+```
+
+5) Get the detailed breakdowns of the hybrid cells
+```{r}
+multi.id.cells.2d.d2 <- c(rownames(classication.iep.lt.2d)[which(classication.iep.lt.2d$call == "Multi_ID")])
+
+binary.m.id <- as.data.frame(binary.iep.lt.2d[multi.id.cells.2d.d2, ])
+binary.m.id$cell.id <- rownames(binary.m.id)
+binary.m.id.melt <- reshape2::melt(binary.m.id)
+binary.m.id.melt <- binary.m.id.melt[which(binary.m.id.melt$value > 0), ]
+
+binary.new.2 <- data.frame()
+binary.m.id.melt$variable <- as.character(binary.m.id.melt$variable)
+for (mc in multi.id.cells.2d.d2) {
+  curr.sub <- binary.m.id.melt[which(binary.m.id.melt$cell.id == mc), ]
+  curr.cell.type.combine <- paste0(gsub(pattern = "frxn_cell.type_", replacement = "", x = curr.sub$variable), collapse = "-")
+  
+  curr.df <- data.frame(cell = mc, cell.type = curr.cell.type.combine, stringsAsFactors = F)
+  if (nrow(binary.new.2) <= 0){
+    binary.new.2 <- curr.df
+  } else {
+    binary.new.2 <- rbind(binary.new.2, curr.df)
+  }
+}
+binary.new.2.d2 <- binary.new.2
+new.rslt.d2 <- table(binary.new.2$cell.type) * 100/sum(table(binary.new.2$cell.type))
+```
+#### Capybara on Replicate #2
+
+1) QP
+```{r, eval=FALSE}
+test.sc <- as.matrix(d16.raw.obj@assays$RNA@counts[, rownames(d16.raw.obj@meta.data)])
+gene.intersect <- intersect(rownames(test.sc), rownames(ref.sc))
+test.sc.scale <- test.sc[gene.intersect,]/(mean(test.sc[gene.intersect,])/mean(as.matrix(ref.sc[gene.intersect,])))
+
+single.round.QP.analysis(ref.df, ref.sc, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "13_2D_LT_iEP_reference_qp_gene_select")
+
+single.round.QP.analysis(ref.df, test.sc.scale, force.eq = 0, n.cores = 2, save.to.path = "~/Desktop/Reproducibility/Figure 6/Intermediates/Quadratic Programming Outcomes/", save.to.filename = "14_2D_LT_iEP_test_qp_gene_select")
+```
+
+2) Load the QP scores
+```{r}
+scaled.no.force.ref.qp <- read.csv("~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LT iEP 3D Analysis/QPs/13_2D_LT_iEP_reference_qp_gene_select_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+
+scaled.no.force.test.qp <- read.csv("~/Desktop/Morris Lab/Manuscripts/Capybara/Revision/LT iEP 3D Analysis/QPs/14_2D_LT_iEP_test_qp_gene_select_scale.csv", row.names = 1, header = T, stringsAsFactors = F)
+```
+
+3) Permutation
+```{r}
+col.sub <- ncol(scaled.no.force.ref.qp) - 2
+
+# Conduct reference randomization to get empirical p-value matrix
+ref.perc.list <- percentage.calc(mtx = scaled.no.force.ref.qp[,c(1:col.sub)], bkgd.mtx = scaled.no.force.ref.qp[,c(1:col.sub)])
+
+# Conduct test randomization to get empirical p-value matrix
+perc.list <- percentage.calc(mtx = scaled.no.force.test.qp[,c(1:col.sub)], bkgd.mtx = scaled.no.force.ref.qp[,c(1:col.sub)])
+```
+
+```{r}
+ideal.deviance <- scaled.no.force.ref.qp[,c(1:20)] - 1/20
+ideal.deviance.all <- rowSums(abs(ideal.deviance))
+ideal.deviance.all.mean <- mean(ideal.deviance.all)
+ideal.deviance.sd <- sd(ideal.deviance.all)
+
+library(MASS)
+fit <- fitdistr(ideal.deviance.all, densfun = "normal")
+
+force.test.qp.deviance <- abs(scaled.no.force.test.qp[,c(1:20)] - 1/20)
+
+force.test.qp.deviance$total.deviance <- rowSums(force.test.qp.deviance)
+scaled.no.force.test.qp$deviance <- force.test.qp.deviance[rownames(scaled.no.force.test.qp), "total.deviance"]
+
+guessed.multi.id.deviance.mean <- ideal.deviance.all.mean - ideal.deviance.sd
+guessed.unknown.deviance.mean <- guessed.multi.id.deviance.mean - ideal.deviance.sd
+
+scaled.no.force.test.qp$deviance.p <- pnorm(scaled.no.force.test.qp$deviance, mean = ideal.deviance.all.mean, sd = ideal.deviance.sd, lower.tail = T)
+scaled.no.force.test.qp$deviance.p.multi <- pnorm(scaled.no.force.test.qp$deviance, mean = guessed.multi.id.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+scaled.no.force.test.qp$deviance.p.unknown <- pnorm(scaled.no.force.test.qp$deviance, mean = guessed.unknown.deviance.mean, sd = ideal.deviance.sd/2, lower.tail = T)
+```
+
+```{r}
+init.class <- data.frame(cell.bc = rownames(force.test.qp.deviance), init.class = "Single-ID", stringsAsFactors = F)
+rownames(init.class) <- init.class$cell.bc
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p >= 0.05 & scaled.no.force.test.qp$deviance.p.multi >= 0.95), ]), "init.class"] <- "Single-ID"
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p.multi >= 0 & scaled.no.force.test.qp$deviance.p.unknown > 0.4 & scaled.no.force.test.qp$deviance.p < 0.05), ]), "init.class"] <- "Multi_ID"
+init.class[rownames(scaled.no.force.test.qp[which(scaled.no.force.test.qp$deviance.p.multi < 0.01 & scaled.no.force.test.qp$deviance.p.unknown >= 0.4), ]), "init.class"] <- "Unknown"
+```
+
+4) Classification
+```{r}
+binary.iep.lt.2d.d16 <- binarization.mann.whitney(mtx = scaled.no.force.test.qp[,c(1:col.sub)], ref.perc.ls = ref.perc.list, ref.meta = ref.meta, perc.ls = perc.list, init.class = init.class)
+classication.iep.lt.2d.d16 <- binary.to.classification(binary.iep.lt.2d.d16)
+rownames(classication.iep.lt.2d.d16) <- classication.iep.lt.2d.d16$barcode
+```
+
+```{r}
+multi.id.cells.2d.d16 <- rownames(classication.iep.lt.2d.d16)[which(classication.iep.lt.2d.d16$call == "Multi_ID")]
+
+binary.m.id <- as.data.frame(binary.iep.lt.2d.d16[multi.id.cells.2d.d16, ])
+binary.m.id$cell.id <- rownames(binary.m.id)
+binary.m.id.melt <- reshape2::melt(binary.m.id)
+binary.m.id.melt <- binary.m.id.melt[which(binary.m.id.melt$value > 0), ]
+
+binary.new.2 <- data.frame()
+binary.m.id.melt$variable <- as.character(binary.m.id.melt$variable)
+for (mc in multi.id.cells.2d.d16) {
+  curr.sub <- binary.m.id.melt[which(binary.m.id.melt$cell.id == mc), ]
+  curr.cell.type.combine <- paste0(gsub(pattern = "frxn_cell.type_", replacement = "", x = curr.sub$variable), collapse = "-")
+  
+  curr.df <- data.frame(cell = mc, cell.type = curr.cell.type.combine, stringsAsFactors = F)
+  if (nrow(binary.new.2) <= 0){
+    binary.new.2 <- curr.df
+  } else {
+    binary.new.2 <- rbind(binary.new.2, curr.df)
+  }
+}
+new.rslt.d16 <- table(binary.new.2$cell.type) * 100/sum(table(binary.new.2$cell.type))
+```
+
+### Integrate with the other 2D object
+```{r}
+iep.2d.3d.comb <- readRDS("~/Desktop/Reproducibility/Figure 6/Intermediates/Seurat Objects/integrated_iep_2d_3d_object.Rds")
+```
+
+### look at markers
+```{r, fig.width=5, fig.height=5}
+DefaultAssay(iep.2d.3d.comb) <- "RNA"
+FeaturePlot(iep.2d.3d.comb, features = c( features = c("Epcam", "Spp1", "Krt19", "Cdh1")))
+FeaturePlot(iep.2d.3d.comb, features = c( features = c("Col1a2", "Peg3", "S100a4")))
+```
+
+### Add classifications to this
+```{r}
+rownames(classication.iep.lt.2d) <- paste0("Rep1-2D_", classication.iep.lt.2d$barcode)
+rownames(classication.iep.lt.2d.d16) <- paste0("Rep2-2D_", classication.iep.lt.2d.d16$barcode)
+
+iep.2d.3d.comb@meta.data[rownames(classication.iep.lt.2d), "capy.call"] <- classication.iep.lt.2d$call
+iep.2d.3d.comb@meta.data[rownames(classication.iep.lt.2d), "more.general.capy.call"] <- classication.iep.lt.2d$call
+
+iep.2d.3d.comb@meta.data[rownames(classication.iep.lt.2d.d16), "capy.call"] <- classication.iep.lt.2d.d16$call
+iep.2d.3d.comb@meta.data[rownames(classication.iep.lt.2d.d16), "more.general.capy.call"] <- classication.iep.lt.2d.d16$call
+
+
+iep.2d.3d.comb@meta.data <- iep.2d.3d.comb@meta.data[!is.na(iep.2d.3d.comb@meta.data$orig.ident),]
+```
+
+```{r, fig.width=9, fig.height=9}
+iep.2d.3d.comb@meta.data$more.general.capy.call[which(startsWith(tolower(iep.2d.3d.comb@meta.data$more.general.capy.call), "stromal.cell"))] <- "Stromal Cell"
+iep.2d.3d.comb@meta.data$more.general.capy.call[which(startsWith(iep.2d.3d.comb@meta.data$more.general.capy.call, "Muscle"))] <- "Muscle"
+iep.2d.3d.comb@meta.data$more.general.capy.call[which(startsWith(iep.2d.3d.comb@meta.data$more.general.capy.call, "MEF"))] <- "MEF"
+
+DimPlot(iep.2d.3d.comb, group.by = "more.general.capy.call", split.by = "replicate", ncol = 2) + scale_color_manual(values = c(RColorBrewer::brewer.pal(12, "Paired")[c(2,6,4,8,11,10,12)]))
+```
+
+```{r, fig.width=8, fig.height=4}
+iep.2d.3d.comb@meta.data[, "culture_method"] <- NA
+iep.2d.3d.comb@meta.data[which(iep.2d.3d.comb@meta.data$replicate %in% c("Rep1", "Rep2")), "culture_method"] <- "Matrigel"
+iep.2d.3d.comb@meta.data[which(iep.2d.3d.comb@meta.data$replicate %in% c("Rep1-2D", "Rep2-2D")), "culture_method"] <- "Flat"
+DimPlot(iep.2d.3d.comb, group.by = "more.general.capy.call", split.by = "culture_method") + scale_color_manual(values = c(RColorBrewer::brewer.pal(12, "Paired")[c(2,6,4,8,11,10,12)]))
+```
+
+### Discrete identity composition
+Here we want to compare discrete identities between culture in matrigel (3D) vs 2D-cultured cells.
+```{r}
+discrete.identity <- table(iep.2d.3d.comb@meta.data$culture_method, iep.2d.3d.comb@meta.data$more.general.capy.call)
+discrete.identity <- as.data.frame(apply(discrete.identity, 1, function(x) x))
+discrete.identity.no.multi <- discrete.identity
+discrete.identity.no.multi <- as.data.frame(apply(discrete.identity.no.multi, 2, function(x) round(x * 100/sum(x), digits = 3)))
+
+discrete.identity.no.multi$identities <- rownames(discrete.identity.no.multi)
+discrete.identity.no.multi.melt <- reshape2::melt(discrete.identity.no.multi)
+```
+
+Plot dot plot where each dot size represent percentages of discrete identities represented in the population.
+```{r, fig.width=3.5, fig.height=5, warning=FALSE}
+discrete.identity.no.multi.melt$identities <- factor(discrete.identity.no.multi.melt$identities, levels = rev(c("BEC_DDC", "BEC_normal", "Hepatocyte_DDC", "MEF", "Muscle", "Stromal Cell", "Multi_ID")), ordered = T)
+ggplot(discrete.identity.no.multi.melt, aes(x = variable, y = identities, size = ifelse(value == 0, NA, value), fill = variable, color = variable)) +
+  geom_point() +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_color_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_size_area(max_size = 10) +
+  labs(x = "Culture Method", y = "Capybara Annotation") +
+  theme(legend.position="none",
+        axis.text.x = element_text(face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_text(face = "bold.italic", size = 14),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_blank(),
+        axis.ticks = element_blank())
+  
+  
+```
+
+Here, we observe a significant increase in the normal BEC population and a decrease in the injured BEC population upon 3D culture, suggesting a potential differentiation from injured state to a normal state.
+
+### Hyrbrid breakdown composiitons
+Here we compare the hybrid percentage breakdown between different culture conditions.
+```{r}
+twoD.binary <- rbind(binary.new.2, binary.new.2.d2)
+
+multi.3d <- as.data.frame(new.rslt)
+multi.2d <- as.data.frame(table(twoD.binary$cell.type) * 100/sum(table(twoD.binary$cell.type)))
+
+multi.3d$Var1 <- gsub("Stromal.cell_Cxcl12.high", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1 <- gsub("Stromal.Cell_Cnmd.high", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1 <- gsub("Stromal.Cell_Cxcl14.high", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1 <- gsub("Stromal.Cell_fabp7.high", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1 <- gsub("Stromal.Cell_Agtr2.high", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1 <- gsub("Stromal.cell.Embryonic_Mesenchyme-Stromal.cell.Embryonic_Mesenchyme", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1 <- gsub("Stromal.cell.Embryonic_Mesenchyme-Stromal.cell.Embryonic_Mesenchyme", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1<- gsub("Stromal.cell.Embryonic_Mesenchyme-Stromal.cell.Embryonic_Mesenchyme", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1<- gsub("Stromal.cell.Embryonic_Mesenchyme", "Stromal.cell", multi.3d$Var1)
+multi.3d$Var1<- gsub("MEF.Trophoblast_Stem_Cell", "MEF", multi.3d$Var1)
+multi.3d$Var1<- gsub("Muscle.Embryonic_Mesenchyme", "Muscle", multi.3d$Var1)
+
+multi.2d$Var1<- gsub("Stromal.cell_Cxcl12.high.Embryonic_Mesenchyme", "Stromal.cell", multi.2d$Var1)
+multi.2d$Var1<- gsub("MEF.Trophoblast_Stem_Cell", "MEF", multi.2d$Var1)
+
+```
+
+1) We clean up the hybrid cells to include cell types with only two or three representative discrete counterparts.
+```{r}
+uniq.multi <- unique(multi.3d$Var1)
+new.multi.3d <- data.frame()
+for (i in 1:length(uniq.multi)) {
+  curr.row <- multi.3d[which(multi.3d$Var1 == uniq.multi[i]),]
+  
+  if (length(unique(unlist(strsplit(uniq.multi[i], "-")))) >= 2 & length(unique(unlist(strsplit(uniq.multi[i], "-")))) <=3) {
+    if (nrow(curr.row) <=1) {
+      curr.df <- curr.row
+    } else {
+      curr.df <- data.frame(Var1 = uniq.multi[i], Freq = sum(curr.row$Freq), stringsAsFactors = F)
+    }
+    if (nrow(new.multi.3d) <= 0) {
+      new.multi.3d <- curr.df
+    } else {
+      new.multi.3d <- rbind(new.multi.3d, curr.df)
+    }
+  }
+}
+```
+
+2) Here we merge the flat culture and matrigel culture results and filter the multi_ids.
+```{r}
+new.multi.3d.sub <- new.multi.3d[which(new.multi.3d$Freq > 0.32), ]
+new.multi.2d.sub <- multi.2d[which(multi.2d$Freq > 2), ]
+new.multi.2d.sub$Freq <- -new.multi.2d.sub$Freq 
+new.multi.3d.sub <- new.multi.3d.sub[which(new.multi.3d.sub$Var1 != "Stromal.cell.Embryonic_Mesenchyme"), ]
+
+new.multi.3d.sub$cat <- "Matrigel"
+new.multi.2d.sub$cat <- "Flat"
+
+new.multi.for.plot <- rbind(new.multi.3d.sub, new.multi.2d.sub)
+```
+
+3) We plot the percentage of different hybrid populations in the data.
+```{r, fig.width=9, fig.height=5, warning=FALSE}
+new.multi.for.plot.sub <- new.multi.for.plot[which(abs(new.multi.for.plot$Freq) > 1.5), ]
+new.multi.for.plot.sub$Var1 <- factor(new.multi.for.plot.sub$Var1,
+                                      levels = rev(new.multi.3d.sub[order(-new.multi.3d.sub$Freq), "Var1"]),
+                                      ordered = T)
+ggplot(new.multi.for.plot.sub, aes(x = cat, y = Var1, size = ifelse(Freq == 0, NA, Freq), fill = cat, color = cat)) + 
+  geom_point() +
+  scale_fill_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_color_viridis_d(option = "A", begin = 0.15, end = 0.85) +
+  scale_size_area(max_size = 10) +
+  labs(x = "Culture Method", y = "Hybrid Capybara Annotation") +
+  theme(legend.position="right",
+        axis.text.x = element_text(face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        axis.title.x = element_text(face = "bold.italic", size = 14),
+        axis.title.y = element_text(face = "bold.italic", size = 14),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        title = element_text(face = "bold.italic", size = 14),
+        axis.line = element_line(color = "black", size = 1),
+        axis.ticks = element_blank())
+```
+
+Overall, we observe a significant increase of injured BEC to normal BEC transition and a significant decrease of injured BEC to MEF transition in 3D matrigel sandwich culture.
