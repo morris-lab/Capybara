@@ -1,7 +1,7 @@
 # R Package - Capybara <img src="/examples/Monocle_hat_colin.png" height="30" width="25">
 
 
-Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete identities as well as cells with multiple identities. This package has a dependency on R version (R >= 3.5.0). In addition to the following tutorial, we provide the notebooks for production of figures in the morris-lab/Capybara_reproducibility repository. There could exist some variations due to difference in threshold selections. For details regarding the methods, usage and application, please refer to the following paper: Kong et al., Cell Stem Cell, 2022 (https://www.sciencedirect.com/science/article/pii/S1934590922000996?dgcid=coauthor)
+Capybara is a tool to measure cell identity and fate transitions. This approach is designed to measure cell identity as a continuum, at a single-cell resolution. Capybara enables classification of discrete identities as well as cells with multiple identities. This package has a dependency on R version (R >= 3.5.0). In addition to the following tutorial, we provide the notebooks for production of figures in the morris-lab/Capybara_reproducibility (https://github.com/morris-lab/Capybara_reproducibility) repository. There could exist some variations due to difference in threshold selections. For details regarding the methods, usage and application, please refer to the following paper: Kong et al., Cell Stem Cell, 2022 (https://www.sciencedirect.com/science/article/pii/S1934590922000996?dgcid=coauthor)
 
 ## Installation
 ### Dependencies
