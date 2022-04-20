@@ -292,7 +292,10 @@ To alleviate the effect of technical variations, we construct pseudo-bulk refere
 
 **Get the counts of the cell types involved in the tissues selected**
 
+To obtain the exact same structure of the MCA data, please download the data here (https://wustl.box.com/s/z46vm5yq7r1lw3353o8ttz1xo8pu3dvw).
+
 ```r
+mca.meta$cell.bc.tissue <- unlist(lapply(strsplit(rownames(mca.meta), "_"), function(x) x[1]))
 pancreatic.all.meta <- mca.meta[which(mca.meta$cell.bc.tissue %in% final.cell.types.adult), ]
 
 mca.counts.all.involved <- NULL
@@ -306,6 +309,63 @@ for (i in 1:length(tissues.to.read)) {
     mca.counts.all.involved <- curr.count
   } else {
     mca.counts.all.involved <- cbind(mca.counts.all.involved, curr.count)
+  }
+}
+
+## Meta data filtering
+pancreatic.all.meta$cell.type <- gsub("Dendrtic cell", "Dendritic cell", pancreatic.all.meta$cell.type)
+pancreatic.all.meta$cell.type.1 <- gsub("\\([^)]*\\)", "", pancreatic.all.meta$cell.type)
+pancreatic.all.meta$cell.type.alone <- unlist(lapply(strsplit(pancreatic.all.meta$cell.type.1, "_"), function(x) x[1]))
+
+## Filter out cell types with less than 30 cells
+cell.type.alone.freq <- as.data.frame(table(pancreatic.all.meta$cell.type.alone))
+cell.type.over.30 <- cell.type.alone.freq$Var1[which(cell.type.alone.freq$Freq >= 30)]
+pancreatic.sub.meta <- pancreatic.all.meta[which(pancreatic.all.meta$cell.type.alone %in% as.character(cell.type.over.30)),]
+coldata.df <- pancreatic.sub.meta
+```
+
+If the data is obtained from MCA website (https://figshare.com/articles/MCA_DGE_Data/5435866), please download the compressed file with rmbatch_dge. The extraction of the compressed file will provide a folder contains space-delimited text files, containing the single-cell matrices for each tissue in the MCA from different animals. Please follow the next few lines for the processing of such files. Special thanks to Danyi_ZHENG for sharing the tutorial with these MCA files (Detailed tutorial can be found here - https://github.com/Danyi-ZHENG/Capybara_MCA_tutorial/blob/main/Capybara_tutorial_MCA_220415.R)
+
+```r
+mca.meta$cell.bc.tissue <- unlist(lapply(strsplit(rownames(mca.meta), "_"), function(x) x[1]))
+pancreatic.all.meta <- mca.meta[which(mca.meta$cell.bc.tissue %in% final.cell.types.adult), ]
+
+mca.counts.all.involved <- NULL
+tissues.to.read <- unique(pancreatic.all.meta$tissue)
+
+curr.dir <- "../rmbatch_dge/"
+curr.dir.files <- list.files(curr.dir)
+curr.dir.files.sub <- unlist(lapply(strsplit(curr.dir.files, "_"), function(x) x[1]))
+
+for (i in 1:length(tissues.to.read)) {
+
+  print(i)
+
+  curr.t <- tissues.to.read[i]
+  acceptable.files.starts <- c(curr.t, paste0(curr.t, seq(1,10)))
+  file.index <- which(curr.dir.files.sub %in% acceptable.files.starts)
+
+  curr.files.to.read <- curr.dir.files[file.index]
+  curr.path.to.read <- paste0(curr.dir, "/", curr.files.to.read)
+
+  curr.tissue.count.mtx <- NULL
+
+  for (curr.f in curr.path.to.read) {
+  	curr.count <- read.table(curr.f, header = T, row.names = 1, stringsAsFactors = F)
+  	if (is.null(curr.tissue.count.mtx)) {
+  		curr.tissue.count.mtx <- curr.count
+  	} else {
+  		gene.intersect <- intersect(rownames(curr.tissue.count.mtx), rownames(curr.count))
+  		curr.tissue.count.mtx <- cbind(curr.tissue.count.mtx[gene.intersect,], curr.count[gene.intersect,])
+  	}
+  }
+
+  
+  if (is.null(mca.counts.all.involved)) {
+    mca.counts.all.involved <- curr.tissue.count.mtx
+  } else {
+    gene.intersect <- intersect(rownames(mca.counts.all.involved), rownames(curr.tissue.count.mtx))
+    mca.counts.all.involved <- cbind(mca.counts.all.involved[gene.intersect,], curr.tissue.count.mtx[gene.intersect,])
   }
 }
 
