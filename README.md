@@ -442,12 +442,13 @@ rownames(classification) <- classification$barcode
 We check the classification results by comparing the labels that are shared between the reference and manual annotation of Baron et al., 2016. Further, we visualize the agreement using ggplot2.
 
 ```r
+rownames(baron.meta) <- gsub("-", ".",rownames(baron.meta))
 classification$actual <- baron.meta[rownames(classification), "cell.type"]
 
 table.freq <- table(classification$actual, classification$call)
 table.freq.perc <- apply(table.freq, 1, function(x) round(x * 100/sum(x), digits = 3))
 
-rownames(table.freq.perc)[16] <- "beta"
+rownames(table.freq.perc)[nrow(table.freq.perc] <- "beta"
 
 table.freq.sub <- as.data.frame(table.freq.perc[c("B.cell", "beta", "Ductal.cell", "Endothelial.cell",
                                                   "Macrophage", "T.cell", "Dendritic.cell", "Stromal.cell", 
